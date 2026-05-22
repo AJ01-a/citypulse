@@ -1,9 +1,9 @@
 // ----- Configuration -----
 // Edit these for your city.
 const CITY_CONFIG = {
-  name: "Your City",
-  center: [40.7128, -74.0060], // [lat, lng] — replace with your city center
-  zoom: 12,
+  name: "Neepawa, Manitoba",
+  center: [50.2289, -99.4661], // Neepawa town center
+  zoom: 14,
 };
 
 const TYPE_META = {
