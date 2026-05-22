@@ -63,14 +63,16 @@
   // Submit
   const form = document.getElementById('reportForm');
   const msg = document.getElementById('formMsg');
-  form.addEventListener('submit', e => {
+  const submitBtn = form.querySelector('button[type="submit"]');
+
+  form.addEventListener('submit', async e => {
     e.preventDefault();
     const fd = new FormData(form);
     const report = {
       type: fd.get('type'),
       severity: fd.get('severity'),
-      area: fd.get('area').trim(),
-      description: fd.get('description').trim(),
+      area: (fd.get('area') || '').trim(),
+      description: (fd.get('description') || '').trim(),
       lat: parseFloat(fd.get('lat')),
       lng: parseFloat(fd.get('lng')),
     };
@@ -79,9 +81,20 @@
     if (Number.isNaN(report.lat) || Number.isNaN(report.lng)) {
       delete report.lat; delete report.lng;
     }
-    addReport(report);
-    showMsg('ok', '✓ Report submitted. Redirecting to dashboard…');
-    setTimeout(() => { window.location.href = 'index.html'; }, 1200);
+
+    submitBtn.disabled = true;
+    const originalLabel = submitBtn.textContent;
+    submitBtn.textContent = 'Submitting…';
+
+    try {
+      await addReport(report);
+      showMsg('ok', '✓ Report submitted. Redirecting to dashboard…');
+      setTimeout(() => { window.location.href = 'index.html'; }, 1200);
+    } catch (err) {
+      submitBtn.disabled = false;
+      submitBtn.textContent = originalLabel;
+      showMsg('err', '✗ ' + (err.message || 'Submission failed. Please try again.'));
+    }
   });
 
   function showMsg(kind, text) {

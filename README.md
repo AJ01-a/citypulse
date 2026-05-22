@@ -1,6 +1,6 @@
 # CityPulse — Local Outage Tracker
 
-A community-powered dashboard for power outages, water advisories, internet disruptions, and road closures. Pure HTML/CSS/JS. No backend required for MVP — reports persist in `localStorage`. Designed for one-click Netlify deploys from GitHub.
+A community-powered dashboard for power outages, water advisories, internet disruptions, and road closures. Reports are shared across all visitors in real time via a Netlify Function + Netlify Blobs backend.
 
 ## Pages
 
@@ -14,9 +14,28 @@ A community-powered dashboard for power outages, water advisories, internet disr
 
 ## Stack
 - Vanilla HTML / CSS / JS — no build step
-- [Leaflet](https://leafletjs.com/) for maps (free, OpenStreetMap tiles, no API key)
-- `localStorage` for community reports (MVP)
+- [Leaflet](https://leafletjs.com/) for maps (free, OpenStreetMap tiles)
+- **Netlify Functions** (`netlify/functions/reports.mjs`) — REST API at `/api/reports`
+- **Netlify Blobs** — persistent shared storage for community reports
 - Netlify Forms for email signups
+
+## Project layout
+
+```
+citypulse/
+├── index.html, report.html, alerts.html, about.html, thanks.html
+├── css/style.css
+├── js/
+│   ├── data.js        # CITY_CONFIG, TYPE_META, fetch() helpers
+│   ├── main.js        # Dashboard rendering, map, polling
+│   └── report.js      # Submit form, picker map
+├── netlify/
+│   └── functions/
+│       └── reports.mjs  # GET/POST /api/reports → Netlify Blobs
+├── netlify.toml         # Headers, publish dir
+├── package.json         # @netlify/blobs dependency
+└── .gitignore
+```
 
 ## Customize for your city
 
@@ -27,24 +46,20 @@ const CITY_CONFIG = {
   name: "Your City",              // shown in header
   center: [40.7128, -74.0060],    // [lat, lng] — your city center
   zoom: 12,
-  storageKey: "citypulse.reports.v1",
-  reportTTLms: 24 * 60 * 60 * 1000, // reports expire after 24h
 };
 ```
 
-Update `SEED_REPORTS` in the same file with realistic local examples (or empty array `[]` for a clean start).
+## Local development
 
-## Going beyond MVP
+You need Node.js + Netlify CLI:
 
-The localStorage model means each visitor sees their own reports + seed data. To make it a true community feed:
+```bash
+npm install -g netlify-cli
+npm install
+netlify dev
+```
 
-1. **Add Netlify Functions** in `netlify/functions/`:
-   - `reports.js` — GET/POST to a database (Supabase, FaunaDB, Netlify Blobs)
-2. **Swap `addReport()` / `loadReports()`** in `js/data.js` to call those endpoints
-3. **Add real data feeds** via scheduled functions:
-   - Local power utility outage JSON
-   - 511 traffic API
-   - Water advisory RSS
+First run prompts you to link this folder to a Netlify site. Then the app + functions run together at `http://localhost:8888`.
 
 ## Deploy
 
@@ -56,17 +71,30 @@ git branch -M main
 gh repo create citypulse --public --source=. --remote=origin --push
 ```
 
-Then on Netlify: **Add new site → Import from GitHub** → pick `citypulse` → Deploy. No build settings needed; `netlify.toml` handles publish dir + security headers.
+Then on Netlify: **Add new site → Import from GitHub** → pick `citypulse` → Deploy. Netlify auto-detects:
+- Static site in repo root
+- Function in `netlify/functions/`
+- `package.json` — installs `@netlify/blobs` automatically
 
-## Local preview
+No environment variables or dashboard config needed. Blobs storage is provisioned on first write.
 
-```bash
-python -m http.server 8000
-# open http://localhost:8000
-```
+## API reference
+
+`GET /api/reports` → `[{ id, type, severity, area, description, lat?, lng?, createdAt }, ...]`
+`POST /api/reports` with the same shape (sans `id` and `createdAt`) → returns the created record
+
+Server enforces:
+- Type must be `power | water | internet | road`
+- Severity must be `minor | moderate | major`
+- Area 2–80 chars, description 5–280 chars
+- Coords (if sent) must be valid lat/lng
+- Body capped at 1 KB
+- Reports older than 24h auto-purged on every read/write
+- Max 500 reports retained globally
 
 ## Notes
 
-- Reports older than 24h auto-purge on every page load.
-- Map pin coordinates are optional — reports without pins still show in the list.
-- The form's "Use My Location" button requires HTTPS (works on Netlify; on localhost, requires `http://localhost` exactly).
+- Dashboard polls `/api/reports` every 30s and on tab focus.
+- Map pin coordinates are optional.
+- "Use My Location" requires HTTPS (works on Netlify; localhost is exempt).
+- Free tier covers ~125k function invocations/month — plenty for a neighborhood-scale deployment.

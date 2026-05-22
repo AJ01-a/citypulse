@@ -4,49 +4,7 @@ const CITY_CONFIG = {
   name: "Your City",
   center: [40.7128, -74.0060], // [lat, lng] — replace with your city center
   zoom: 12,
-  storageKey: "citypulse.reports.v1",
-  reportTTLms: 24 * 60 * 60 * 1000, // 24 hours
 };
-
-// ----- Seed data (sample incidents shown on first visit) -----
-const SEED_REPORTS = [
-  {
-    id: "seed-1",
-    type: "power",
-    severity: "major",
-    area: "Downtown",
-    description: "Widespread outage affecting ~3 blocks around Main & 5th. Streetlights also out.",
-    lat: 40.7138, lng: -74.0040,
-    createdAt: Date.now() - 1000 * 60 * 22,
-  },
-  {
-    id: "seed-2",
-    type: "water",
-    severity: "moderate",
-    area: "North End",
-    description: "Boil-water advisory issued after a main break on Oak Ave. Crews on scene.",
-    lat: 40.7250, lng: -74.0010,
-    createdAt: Date.now() - 1000 * 60 * 95,
-  },
-  {
-    id: "seed-3",
-    type: "road",
-    severity: "minor",
-    area: "West Side",
-    description: "Tree down across Cedar Lane near the park. Single lane passable.",
-    lat: 40.7180, lng: -74.0150,
-    createdAt: Date.now() - 1000 * 60 * 15,
-  },
-  {
-    id: "seed-4",
-    type: "internet",
-    severity: "moderate",
-    area: "South District",
-    description: "ComCast/Xfinity reporting fiber cut. ETA restore: 6pm.",
-    lat: 40.7080, lng: -74.0030,
-    createdAt: Date.now() - 1000 * 60 * 45,
-  },
-];
 
 const TYPE_META = {
   power:    { icon: "⚡", label: "Power",    color: "#dc2626" },
@@ -55,36 +13,32 @@ const TYPE_META = {
   road:     { icon: "🚧", label: "Road",     color: "#ea580c" },
 };
 
-// ----- Storage helpers -----
-function loadReports() {
-  const raw = localStorage.getItem(CITY_CONFIG.storageKey);
-  let reports;
-  if (!raw) {
-    reports = SEED_REPORTS.slice();
-    saveReports(reports);
-  } else {
-    try { reports = JSON.parse(raw); } catch { reports = []; }
+const API_URL = '/api/reports';
+
+// ----- Backend calls -----
+async function loadReports() {
+  try {
+    const res = await fetch(API_URL, { cache: 'no-store' });
+    if (!res.ok) throw new Error('fetch failed: ' + res.status);
+    const data = await res.json();
+    return Array.isArray(data) ? data.sort((a, b) => b.createdAt - a.createdAt) : [];
+  } catch (e) {
+    console.warn('loadReports failed, returning empty list:', e);
+    return [];
   }
-  // Prune expired
-  const cutoff = Date.now() - CITY_CONFIG.reportTTLms;
-  reports = reports.filter(r => r.createdAt > cutoff);
-  saveReports(reports);
-  return reports.sort((a, b) => b.createdAt - a.createdAt);
 }
 
-function saveReports(reports) {
-  localStorage.setItem(CITY_CONFIG.storageKey, JSON.stringify(reports));
-}
-
-function addReport(report) {
-  const reports = loadReports();
-  reports.unshift({
-    id: "r-" + Date.now() + "-" + Math.random().toString(36).slice(2, 7),
-    createdAt: Date.now(),
-    ...report,
+async function addReport(report) {
+  const res = await fetch(API_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(report),
   });
-  saveReports(reports);
-  return reports;
+  if (!res.ok) {
+    const msg = await res.text().catch(() => '');
+    throw new Error(msg || ('Submit failed: ' + res.status));
+  }
+  return res.json();
 }
 
 // ----- Formatting -----

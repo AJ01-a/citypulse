@@ -1,0 +1,14 @@
+{
+  "name": "citypulse",
+  "version": "1.0.0",
+  "type": "module",
+  "private": true,
+  "description": "Community-powered local outage and disruption tracker.",
+  "scripts": {
+    "dev": "netlify dev",
+    "start": "netlify dev"
+  },
+  "dependencies": {
+    "@netlify/blobs": "^7.4.0"
+  }
+}

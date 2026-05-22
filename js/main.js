@@ -26,8 +26,8 @@
 
   let activeFilter = 'all';
 
-  function render() {
-    const reports = loadReports();
+  async function render() {
+    const reports = await loadReports();
     const summary = summarize(reports);
 
     // Banner state
@@ -134,11 +134,11 @@
 
   render();
 
-  // Auto-refresh relative timestamps + check for new reports every 30s
+  // Auto-refresh relative timestamps + poll backend every 30s
   setInterval(render, 30000);
 
-  // Cross-tab sync
-  window.addEventListener('storage', e => {
-    if (e.key === CITY_CONFIG.storageKey) render();
+  // Refresh when tab regains focus (catches updates faster than the 30s poll)
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') render();
   });
 })();
