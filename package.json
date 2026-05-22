@@ -9,6 +9,7 @@
     "start": "netlify dev"
   },
   "dependencies": {
-    "@netlify/blobs": "^7.4.0"
+    "@netlify/blobs": "^7.4.0",
+    "fast-xml-parser": "^4.4.0"
   }
 }

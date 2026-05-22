@@ -30,6 +30,18 @@
     </nav>
   </header>
 
+  <div class="alert-banner-wrap container" id="alertBannerWrap" hidden>
+    <div class="alert-banner" id="alertBanner"></div>
+  </div>
+
+  <section class="hero-weather">
+    <div class="container">
+      <div class="weather-card" id="weatherCard">
+        <div class="weather-loading">Loading weather…</div>
+      </div>
+    </div>
+  </section>
+
   <section class="hero-status">
     <div class="container">
       <div class="status-banner" id="overallStatus">
@@ -47,7 +59,7 @@
   </section>
 
   <section class="container">
-    <div class="grid grid-4 status-cards" id="statusCards"></div>
+    <div class="grid grid-5 status-cards" id="statusCards"></div>
   </section>
 
   <section class="container two-col">
@@ -56,6 +68,7 @@
         <h2>Active Incidents</h2>
         <div class="filters">
           <button class="chip active" data-filter="all">All</button>
+          <button class="chip" data-filter="weather">Weather</button>
           <button class="chip" data-filter="power">Power</button>
           <button class="chip" data-filter="water">Water</button>
           <button class="chip" data-filter="internet">Internet</button>

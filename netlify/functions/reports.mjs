@@ -1,18 +1,23 @@
 import { getStore } from "@netlify/blobs";
 
-const TTL_MS = 24 * 60 * 60 * 1000;
+const COMMUNITY_TTL_MS = 24 * 60 * 60 * 1000;
 const MAX_REPORTS = 500;
 const MAX_BODY = 1024;
-const VALID_TYPES = new Set(["power", "water", "internet", "road"]);
+const VALID_TYPES = new Set(["power", "water", "internet", "road", "weather"]);
 const VALID_SEV   = new Set(["minor", "moderate", "major"]);
+
+function isExpired(r, now) {
+  if (typeof r.expiresAt === "number") return r.expiresAt <= now;
+  return (now - r.createdAt) > COMMUNITY_TTL_MS;
+}
 
 export default async (req) => {
   const store = getStore("citypulse-reports");
 
   if (req.method === "GET") {
     const all = (await store.get("all", { type: "json" })) || [];
-    const cutoff = Date.now() - TTL_MS;
-    const fresh = all.filter(r => r.createdAt > cutoff);
+    const now = Date.now();
+    const fresh = all.filter(r => !isExpired(r, now));
     return Response.json(fresh, {
       headers: { "Cache-Control": "no-store" }
     });
@@ -51,12 +56,14 @@ export default async (req) => {
       severity: body.severity,
       area: body.area.trim(),
       description: body.description.trim(),
+      source: "community",
+      verified: false,
       ...(hasCoords ? { lat: body.lat, lng: body.lng } : {})
     };
 
     const all = (await store.get("all", { type: "json" })) || [];
-    const cutoff = Date.now() - TTL_MS;
-    const next = [report, ...all.filter(r => r.createdAt > cutoff)].slice(0, MAX_REPORTS);
+    const now = Date.now();
+    const next = [report, ...all.filter(r => !isExpired(r, now))].slice(0, MAX_REPORTS);
     await store.set("all", JSON.stringify(next));
 
     return Response.json(report, { status: 201 });

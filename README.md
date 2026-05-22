@@ -1,57 +1,71 @@
-# CityPulse — Local Outage Tracker
+# CityPulse — Neepawa Live Status
 
-A community-powered dashboard for power outages, water advisories, internet disruptions, and road closures. Reports are shared across all visitors in real time via a Netlify Function + Netlify Blobs backend.
+A fully automated, free-to-run local dashboard combining live weather, official severe-weather alerts, and community-reported incidents (power, water, internet, roads). Configured for **Neepawa, Manitoba**.
+
+## What runs automatically
+
+| What | Source | Frequency | Cost |
+|---|---|---|---|
+| Current weather + 4-day forecast | [Open-Meteo](https://open-meteo.com) | Every 30 min | Free, no API key |
+| Severe weather warnings (tornado, blizzard, freezing rain, etc.) | Environment Canada Datamart XML (Brandon station `s0000492`) | Every 15 min | Free, no API key |
+| Community reports (power, water, internet, road) | Visitors via `/report.html` | On submission | Free |
+
+**Net result:** Once deployed, the site stays useful with zero ongoing maintenance. The only manual action is occasional content tweaks (city name, layout, etc.).
 
 ## Pages
 
 | Page | Purpose |
 |---|---|
-| `index.html` | Live dashboard: status banner, 4 category cards, incidents list, map |
-| `report.html` | Submit a new incident with a map pin |
-| `alerts.html` | Email subscription form (Netlify Forms) |
-| `about.html` | Project info, data sources, disclaimer |
+| `index.html` | Live dashboard: weather hero, alert banner, status cards, incident list, map |
+| `report.html` | Submit a community incident with a map pin |
+| `alerts.html` | Email subscription (Netlify Forms) |
+| `about.html` | Data sources & disclaimer |
 | `thanks.html` | Post-subscribe confirmation |
-
-## Stack
-- Vanilla HTML / CSS / JS — no build step
-- [Leaflet](https://leafletjs.com/) for maps (free, OpenStreetMap tiles)
-- **Netlify Functions** (`netlify/functions/reports.mjs`) — REST API at `/api/reports`
-- **Netlify Blobs** — persistent shared storage for community reports
-- Netlify Forms for email signups
 
 ## Project layout
 
 ```
 citypulse/
-├── index.html, report.html, alerts.html, about.html, thanks.html
+├── *.html
 ├── css/style.css
 ├── js/
-│   ├── data.js        # CITY_CONFIG, TYPE_META, fetch() helpers
-│   ├── main.js        # Dashboard rendering, map, polling
-│   └── report.js      # Submit form, picker map
+│   ├── data.js        # CITY_CONFIG, WMO code mapping, fetch() helpers
+│   ├── main.js        # Dashboard render: weather, alerts, incidents, map
+│   └── report.js      # Submit form
 ├── netlify/
 │   └── functions/
-│       └── reports.mjs  # GET/POST /api/reports → Netlify Blobs
-├── netlify.toml         # Headers, publish dir
-├── package.json         # @netlify/blobs dependency
+│       ├── reports.mjs       # GET/POST /api/reports
+│       ├── get-weather.mjs   # GET /api/weather (with live fallback)
+│       ├── poll-weather.mjs  # Cron */30min — fetches Open-Meteo
+│       └── poll-alerts.mjs   # Cron */15min — parses EC weather XML
+├── netlify.toml
+├── package.json       # @netlify/blobs, fast-xml-parser
 └── .gitignore
 ```
 
-## Customize for your city
+## Customize for a different town
 
-Edit `js/data.js`:
+Three places to edit if pointing this at a different Canadian community:
 
-```js
-const CITY_CONFIG = {
-  name: "Your City",              // shown in header
-  center: [40.7128, -74.0060],    // [lat, lng] — your city center
-  zoom: 12,
-};
-```
+1. **`js/data.js`** → `CITY_CONFIG.name`, `center`, `zoom`
+2. **`netlify/functions/poll-weather.mjs`** → `LAT`, `LNG`, `TZ`
+3. **`netlify/functions/poll-alerts.mjs`** → `SITE_CODE` (find your nearest at https://dd.weather.gc.ca/today/citypage_weather/MB/00/ — open files to identify the city, then copy the `s0000XXX` code)
+
+Common Manitoba site codes:
+- `s0000492` — Brandon (closest to Neepawa)
+- `s0000193` — Winnipeg
+- `s0000395` — Dauphin
+- `s0000626` — Portage la Prairie
+
+## API endpoints
+
+| Endpoint | Method | Returns |
+|---|---|---|
+| `/api/reports` | GET | `[{id, type, severity, area, description, lat?, lng?, source, verified, createdAt, expiresAt?}]` |
+| `/api/reports` | POST | Created report (community submissions only — server forces `source: "community"`) |
+| `/api/weather` | GET | Cached weather (`{current, daily, hourly, fetchedAt}`); falls back to live fetch if cache is missing or >1h stale |
 
 ## Local development
-
-You need Node.js + Netlify CLI:
 
 ```bash
 npm install -g netlify-cli
@@ -59,42 +73,48 @@ npm install
 netlify dev
 ```
 
-First run prompts you to link this folder to a Netlify site. Then the app + functions run together at `http://localhost:8888`.
+First run links the directory to your Netlify site. Then everything runs at `http://localhost:8888` — the dev server proxies functions and serves static files together.
+
+**To manually trigger scheduled functions while developing:**
+```bash
+netlify functions:invoke poll-weather --no-identity
+netlify functions:invoke poll-alerts --no-identity
+```
 
 ## Deploy
 
 ```bash
-git init
 git add .
-git commit -m "Initial CityPulse site"
-git branch -M main
-gh repo create citypulse --public --source=. --remote=origin --push
+git commit -m "Add automated weather + EC alerts"
+git push
 ```
 
-Then on Netlify: **Add new site → Import from GitHub** → pick `citypulse` → Deploy. Netlify auto-detects:
+Netlify auto-detects:
 - Static site in repo root
-- Function in `netlify/functions/`
-- `package.json` — installs `@netlify/blobs` automatically
+- Functions in `netlify/functions/`
+- `package.json` → installs `@netlify/blobs` and `fast-xml-parser`
+- Schedule config inside each function file → registers cron jobs
 
-No environment variables or dashboard config needed. Blobs storage is provisioned on first write.
+After the first deploy, cron starts running. Check **Functions** in the Netlify dashboard — you'll see `poll-weather` and `poll-alerts` listed with invocation logs.
 
-## API reference
+## Free-tier limits (Netlify)
 
-`GET /api/reports` → `[{ id, type, severity, area, description, lat?, lng?, createdAt }, ...]`
-`POST /api/reports` with the same shape (sans `id` and `createdAt`) → returns the created record
+- **Functions:** 125k invocations/month
+- **Scheduled invocations:** 4 per hour from `poll-alerts` + 2 per hour from `poll-weather` = ~4,400/month, plus on-demand reads from visitors
+- **Blobs:** 5 GB storage, 100 GB egress
+- **Forms:** 100 submissions/month
 
-Server enforces:
-- Type must be `power | water | internet | road`
-- Severity must be `minor | moderate | major`
-- Area 2–80 chars, description 5–280 chars
-- Coords (if sent) must be valid lat/lng
-- Body capped at 1 KB
-- Reports older than 24h auto-purged on every read/write
-- Max 500 reports retained globally
+For a town of ~3,500 people, you'll never come close to these limits.
 
-## Notes
+## Data caveats
 
-- Dashboard polls `/api/reports` every 30s and on tab focus.
-- Map pin coordinates are optional.
-- "Use My Location" requires HTTPS (works on Netlify; localhost is exempt).
-- Free tier covers ~125k function invocations/month — plenty for a neighborhood-scale deployment.
+- **EC alerts** are pulled from **Brandon's** forecast region — the closest Environment Canada coverage to Neepawa. Brandon and Neepawa share most severe-weather alerts (thunderstorms, blizzards, tornadoes, freezing rain), but very localized warnings may not appear.
+- **Open-Meteo** uses GFS/ECMWF model interpolation for Neepawa's exact coordinates. Accuracy is comparable to Environment Canada for general conditions; for ground-truth observations the nearest official station is Brandon Airport (~80km SW).
+- **Community reports** are user-submitted and unverified. The badge ✓ Official appears only on EC-sourced alerts.
+
+## Roadmap (optional future work)
+
+- **Manitoba 511 road conditions** — public API exists at `manitoba511.ca/developers/doc` but requires a free developer key + 10 calls/min rate limit. Skipped per "zero maintenance" goal; add if you want road closure data.
+- **Email alert sending** — `alerts.html` collects subscriptions, but actually sending alerts requires a 4th scheduled function + an email provider (SendGrid free tier = 100/day).
+- **Push notifications** via the Web Push API + Netlify Functions.
+- **Historical archive** by writing daily snapshots to a separate Blobs key.
