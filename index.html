@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Real-time community-reported outages, water advisories, and road closures for your city." />
+  <title>CityPulse — Live City Status</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <header class="site-header">
+    <nav class="nav container">
+      <a href="index.html" class="brand">
+        <span class="pulse-dot"></span>
+        <span>City<strong>Pulse</strong></span>
+      </a>
+      <button class="nav-toggle" aria-label="Open menu" aria-expanded="false">
+        <span></span><span></span><span></span>
+      </button>
+      <ul class="nav-links">
+        <li><a href="index.html" class="active">Dashboard</a></li>
+        <li><a href="report.html">Report</a></li>
+        <li><a href="alerts.html">Alerts</a></li>
+        <li><a href="about.html">About</a></li>
+      </ul>
+    </nav>
+  </header>
+
+  <section class="hero-status">
+    <div class="container">
+      <div class="status-banner" id="overallStatus">
+        <span class="status-dot"></span>
+        <div class="status-meta">
+          <p class="status-label">Live status for</p>
+          <h1 id="cityName">Your City</h1>
+        </div>
+        <div class="status-summary">
+          <p class="status-text" id="statusText">Loading…</p>
+          <p class="updated">Updated <span id="lastUpdate">just now</span></p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="container">
+    <div class="grid grid-4 status-cards" id="statusCards"></div>
+  </section>
+
+  <section class="container two-col">
+    <div>
+      <div class="section-head">
+        <h2>Active Incidents</h2>
+        <div class="filters">
+          <button class="chip active" data-filter="all">All</button>
+          <button class="chip" data-filter="power">Power</button>
+          <button class="chip" data-filter="water">Water</button>
+          <button class="chip" data-filter="internet">Internet</button>
+          <button class="chip" data-filter="road">Roads</button>
+        </div>
+      </div>
+      <ul class="incidents" id="incidentList"></ul>
+    </div>
+    <aside>
+      <div class="section-head"><h2>Live Map</h2></div>
+      <div id="map" class="map"></div>
+      <p class="muted small">Click a pin for details. Tiles &copy; OpenStreetMap contributors.</p>
+    </aside>
+  </section>
+
+  <section class="cta container">
+    <div class="cta-inner">
+      <div>
+        <h2>See something? Report it.</h2>
+        <p>Community-reported incidents help neighbors stay informed before utilities update their dashboards.</p>
+      </div>
+      <a href="report.html" class="btn btn-primary">Report an Outage</a>
+    </div>
+  </section>
+
+  <footer class="site-footer">
+    <div class="container footer-grid">
+      <div>
+        <p class="brand">
+          <span class="pulse-dot"></span>
+          <span>City<strong>Pulse</strong></span>
+        </p>
+        <p class="muted small">Community-powered city status. Not affiliated with any utility provider.</p>
+      </div>
+      <div>
+        <h4>Navigate</h4>
+        <ul>
+          <li><a href="index.html">Dashboard</a></li>
+          <li><a href="report.html">Report</a></li>
+          <li><a href="alerts.html">Alerts</a></li>
+          <li><a href="about.html">About</a></li>
+        </ul>
+      </div>
+      <div>
+        <h4>Resources</h4>
+        <ul>
+          <li><a href="https://www.ready.gov/" target="_blank" rel="noopener">Emergency Preparedness</a></li>
+          <li><a href="tel:911">Emergencies: 911</a></li>
+          <li><a href="tel:311">Non-Emergency: 311</a></li>
+        </ul>
+      </div>
+    </div>
+    <p class="copyright">&copy; <span id="year"></span> CityPulse. Open data, by neighbors, for neighbors.</p>
+  </footer>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <script src="js/data.js"></script>
+  <script src="js/main.js"></script>
+</body>
+</html>

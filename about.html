@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="How CityPulse works, where data comes from, and how to contribute." />
+  <title>About — CityPulse</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <header class="site-header">
+    <nav class="nav container">
+      <a href="index.html" class="brand">
+        <span class="pulse-dot"></span>
+        <span>City<strong>Pulse</strong></span>
+      </a>
+      <button class="nav-toggle" aria-label="Open menu" aria-expanded="false">
+        <span></span><span></span><span></span>
+      </button>
+      <ul class="nav-links">
+        <li><a href="index.html">Dashboard</a></li>
+        <li><a href="report.html">Report</a></li>
+        <li><a href="alerts.html">Alerts</a></li>
+        <li><a href="about.html" class="active">About</a></li>
+      </ul>
+    </nav>
+  </header>
+
+  <section class="page-head">
+    <div class="container">
+      <p class="eyebrow">About</p>
+      <h1>One page for everything affecting your day.</h1>
+      <p class="lede">CityPulse aggregates community reports and public data so you can see — at a glance — whether your neighborhood is having a power outage, water advisory, internet disruption, or road closure.</p>
+    </div>
+  </section>
+
+  <section class="container content">
+    <div class="prose">
+      <h2>Why this exists</h2>
+      <p>Most utilities have a dashboard. They're slow to update, hard to find, and live on five different websites. By the time the electric company confirms an outage, your neighbors already know. CityPulse turns that informal knowledge into a real-time map.</p>
+
+      <h2>How it works</h2>
+      <ol>
+        <li><strong>Neighbors report.</strong> Anyone can submit an incident in under 30 seconds — no account required.</li>
+        <li><strong>Reports cluster on a map.</strong> Multiple reports in the same area raise confidence that something is really happening.</li>
+        <li><strong>Public feeds enrich the data.</strong> Where available, we pull from utility status pages, 511 traffic feeds, and local emergency RSS.</li>
+        <li><strong>Alerts go out.</strong> Subscribers get an email when something matching their filters is reported.</li>
+      </ol>
+
+      <h2>Data sources</h2>
+      <p>Currently integrated (replace with your local sources):</p>
+      <ul>
+        <li>Community reports — stored in browser localStorage (MVP); migrate to a database for production</li>
+        <li>Local power utility outage map (public JSON endpoint)</li>
+        <li>Department of Transportation 511 traffic feed</li>
+        <li>Water utility advisory RSS</li>
+        <li>City emergency management Twitter / Mastodon feed</li>
+      </ul>
+
+      <h2>What this is not</h2>
+      <div class="callout warning">
+        <h4>⚠ Not an emergency service</h4>
+        <p>If you see downed power lines, a fire, a gas leak, or anyone hurt — <strong>call 911</strong>. CityPulse is informational only and should never delay an emergency call.</p>
+      </div>
+
+      <h2>Roadmap</h2>
+      <ul>
+        <li>SMS alerts (Twilio)</li>
+        <li>Historical incident archive &amp; trends</li>
+        <li>Push notifications via Web Push API</li>
+        <li>Multi-city support &amp; community moderation</li>
+        <li>Public API for journalists and researchers</li>
+      </ul>
+
+      <h2>Open source</h2>
+      <p>The entire frontend is static HTML, CSS, and JavaScript. Fork it, fix it, deploy your own city's tracker. Backend integrations are designed as Netlify Functions stubs ready to be filled in.</p>
+    </div>
+  </section>
+
+  <footer class="site-footer">
+    <div class="container footer-grid">
+      <div>
+        <p class="brand">
+          <span class="pulse-dot"></span>
+          <span>City<strong>Pulse</strong></span>
+        </p>
+        <p class="muted small">Community-powered city status. Not affiliated with any utility provider.</p>
+      </div>
+      <div>
+        <h4>Navigate</h4>
+        <ul>
+          <li><a href="index.html">Dashboard</a></li>
+          <li><a href="report.html">Report</a></li>
+          <li><a href="alerts.html">Alerts</a></li>
+          <li><a href="about.html">About</a></li>
+        </ul>
+      </div>
+      <div>
+        <h4>Resources</h4>
+        <ul>
+          <li><a href="https://www.ready.gov/" target="_blank" rel="noopener">Emergency Preparedness</a></li>
+          <li><a href="tel:911">Emergencies: 911</a></li>
+          <li><a href="tel:311">Non-Emergency: 311</a></li>
+        </ul>
+      </div>
+    </div>
+    <p class="copyright">&copy; <span id="year"></span> CityPulse. Open data, by neighbors, for neighbors.</p>
+  </footer>
+
+  <script src="js/main.js"></script>
+</body>
+</html>
