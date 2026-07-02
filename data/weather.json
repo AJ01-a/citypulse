@@ -1,20 +1,20 @@
 {
- "fetchedAt": 1783021322613,
+ "fetchedAt": 1783026223973,
  "location": {
   "lat": 50.2289,
   "lng": -99.4661,
   "timezone": "America/Winnipeg"
  },
  "current": {
-  "time": "2026-07-02T14:30",
+  "time": "2026-07-02T16:00",
   "interval": 900,
-  "temperature_2m": 19.6,
-  "apparent_temperature": 21.4,
-  "relative_humidity_2m": 68,
+  "temperature_2m": 20.1,
+  "apparent_temperature": 20.9,
+  "relative_humidity_2m": 69,
   "weather_code": 3,
-  "wind_speed_10m": 1.8,
-  "wind_gusts_10m": 7.2,
-  "wind_direction_10m": 11,
+  "wind_speed_10m": 5.8,
+  "wind_gusts_10m": 10.4,
+  "wind_direction_10m": 94,
   "is_day": 1
  },
  "currentUnits": {
@@ -38,20 +38,20 @@
   ],
   "weather_code": [
    3,
-   3,
-   95,
+   45,
+   51,
    53
   ],
   "temperature_2m_max": [
-   20.5,
-   22.1,
+   20.3,
+   21.5,
    25.9,
    30.4
   ],
   "temperature_2m_min": [
    14.1,
-   13.6,
-   15.3,
+   13.1,
+   15,
    17.1
   ],
   "sunrise": [
@@ -79,9 +79,9 @@
    48
   ],
   "wind_speed_10m_max": [
-   13.1,
-   12.5,
-   9.3,
+   13.3,
+   13.8,
+   11.2,
    24.4
   ],
   "uv_index_max": [
@@ -145,16 +145,16 @@
    17.7,
    17.6,
    18.1,
-   19.1,
-   19.8,
-   20.5,
-   20.5,
-   20.2,
-   19.3,
-   18.8,
-   17.8,
-   16.8,
-   16
+   18.3,
+   19.4,
+   20.1,
+   20.3,
+   19.7,
+   18.5,
+   18,
+   17.2,
+   16.5,
+   15.9
   ],
   "precipitation_probability": [
    2,

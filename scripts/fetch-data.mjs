@@ -323,10 +323,12 @@ async function buildCameras() {
 async function main() {
   await mkdir(DATA_DIR, { recursive: true });
   const failures = [];
+  let filesWritten = 0;
 
   // Weather (independent file)
   try {
     await buildWeather();
+    filesWritten++;
   } catch (err) {
     failures.push("weather: " + err.message);
   }
@@ -348,6 +350,7 @@ async function main() {
     const incidents = [...(ecAlerts ?? []), ...(roadEvents ?? [])]
       .sort((a, b) => b.createdAt - a.createdAt);
     await writeData("incidents.json", { fetchedAt: Date.now(), incidents });
+    filesWritten++;
   }
 
   // Roads: conditions + cameras
@@ -364,13 +367,19 @@ async function main() {
         cameras: cameras ?? [],
         camerasFetchedAt: cameras !== null ? Date.now() : null,
       });
+      filesWritten++;
     }
   }
 
+  if (filesWritten === 0) {
+    // Nothing fresh at all — fail the job so the deploy is skipped and the
+    // previous (fresher) deployment stays live. A red run is the alarm bell;
+    // a green run must always mean "the site now has fresh data".
+    console.error("FATAL: every source failed:\n - " + failures.join("\n - "));
+    process.exit(1);
+  }
   if (failures.length) {
-    console.error("Completed with failures:\n - " + failures.join("\n - "));
-    // Exit 0 anyway: partial data is better than no deploy. Failures are
-    // visible in the Actions log.
+    console.error("Completed with partial failures (deploying what succeeded):\n - " + failures.join("\n - "));
   } else {
     console.log("All sources fetched successfully.");
   }

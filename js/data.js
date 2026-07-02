@@ -26,9 +26,16 @@ const WEATHER_URL = 'data/weather.json';
 const ROADS_URL   = 'data/roads.json';
 
 // ----- Data loading -----
+// The ?t= cache-buster matters: GitHub Pages' CDN caches files for up to
+// 10 minutes and ignores the browser's no-store; a unique query string
+// forces it to serve the newest deploy.
+function fresh(url) {
+  return url + '?t=' + Date.now();
+}
+
 async function loadReports() {
   try {
-    const res = await fetch(REPORTS_URL, { cache: 'no-store' });
+    const res = await fetch(fresh(REPORTS_URL), { cache: 'no-store' });
     if (!res.ok) throw new Error('fetch failed: ' + res.status);
     const data = await res.json();
     const list = Array.isArray(data) ? data : (data.incidents || []);
@@ -41,7 +48,7 @@ async function loadReports() {
 
 async function loadWeather() {
   try {
-    const res = await fetch(WEATHER_URL, { cache: 'no-store' });
+    const res = await fetch(fresh(WEATHER_URL), { cache: 'no-store' });
     if (!res.ok) throw new Error('fetch failed: ' + res.status);
     return await res.json();
   } catch (e) {
@@ -52,7 +59,7 @@ async function loadWeather() {
 
 async function loadRoads() {
   try {
-    const res = await fetch(ROADS_URL, { cache: 'no-store' });
+    const res = await fetch(fresh(ROADS_URL), { cache: 'no-store' });
     if (!res.ok) throw new Error('fetch failed: ' + res.status);
     return await res.json();
   } catch (e) {

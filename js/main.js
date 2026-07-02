@@ -37,6 +37,7 @@
   if (cityNameEl) cityNameEl.textContent = CITY_CONFIG.name;
 
   let activeFilter = 'all';
+  let dataTimestamp = null;
 
   function escapeHtml(s) {
     return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -222,7 +223,8 @@
       worst === 'warn' ? "Use caution on area highways" :
       summary.total === 0 ? "All clear" :
       `${summary.total} minor item${summary.total === 1 ? '' : 's'}`;
-    lastUpdate.textContent = weather?.fetchedAt ? relativeTime(weather.fetchedAt) : "just now";
+    dataTimestamp = weather?.fetchedAt || null;
+    lastUpdate.textContent = dataTimestamp ? relativeTime(dataTimestamp) : "just now";
 
     // Status tiles
     const tiles = [
@@ -348,6 +350,11 @@
 
   // Auto-refresh every 2 minutes (server-side caches keep upstream load tiny)
   setInterval(render, 120000);
+
+  // Tick the "Updated X ago" label every 30s so data age is always honest
+  setInterval(() => {
+    if (dataTimestamp) lastUpdate.textContent = relativeTime(dataTimestamp);
+  }, 30000);
 
   // Refresh when tab regains focus
   document.addEventListener('visibilitychange', () => {
