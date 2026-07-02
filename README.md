@@ -1,120 +1,116 @@
 # CityPulse — Neepawa Live Status
 
-A fully automated, free-to-run local dashboard combining live weather, official severe-weather alerts, and community-reported incidents (power, water, internet, roads). Configured for **Neepawa, Manitoba**.
+A **fully automated** status dashboard for **Neepawa, Manitoba**: live weather, Environment Canada severe-weather alerts, highway closures, driving conditions, and highway cameras.
+
+Hosted entirely on **GitHub**: the site is static files on **GitHub Pages**, and a scheduled **GitHub Actions** workflow fetches fresh data every 20 minutes and redeploys. No servers, no database, no hosting bill.
+
+## Architecture
+
+```
+GitHub Actions (cron */20 min)
+  └─ scripts/fetch-data.mjs
+       ├─ Open-Meteo ──────────────► data/weather.json
+       ├─ Environment Canada XML ──► data/incidents.json  (+ MB511 events)
+       └─ Manitoba 511 API ────────► data/roads.json      (conditions + cameras)
+  └─ deploy everything to GitHub Pages
+
+Browser
+  └─ index.html reads the three JSON files (same-origin, no API calls)
+```
+
+The Manitoba 511 API key is used **only inside the workflow**. It never appears in the repo or in the browser.
+
+## Setup (one time)
+
+1. **Create the GitHub repo and push** (repo must be **public** — free GitHub Pages and unlimited Actions minutes require it, which is also why the key must never be in code):
+
+   ```powershell
+   git add -A
+   git commit -m "Move to GitHub Pages + Actions"
+   git remote add origin https://github.com/<you>/citypulse.git
+   git push -u origin main
+   ```
+
+2. **Add the API key as a secret** — repo → **Settings → Secrets and variables → Actions → New repository secret**:
+   - Name: `MB511_API_KEY`
+   - Secret: your Manitoba 511 key
+
+   Never commit the key, never paste it into code or chat. If it's ever exposed, request a new one at manitoba511.ca.
+
+3. **Enable Pages** — repo → **Settings → Pages → Source: GitHub Actions**.
+
+4. **Run it once** — repo → **Actions → "Fetch data & deploy to Pages" → Run workflow**. After ~1 minute the site is live at `https://<you>.github.io/citypulse/` and keeps itself updated from then on.
 
 ## What runs automatically
 
-| What | Source | Frequency | Cost |
-|---|---|---|---|
-| Current weather + 4-day forecast | [Open-Meteo](https://open-meteo.com) | Every 30 min | Free, no API key |
-| Severe weather warnings (tornado, blizzard, freezing rain, etc.) | Environment Canada Datamart XML (Brandon station `s0000492`) | Every 15 min | Free, no API key |
-| Community reports (power, water, internet, road) | Visitors via `/report.html` | On submission | Free |
+| What | Source | Key needed |
+|---|---|---|
+| Current weather + 4-day forecast | [Open-Meteo](https://open-meteo.com) | No |
+| Severe weather warnings | Environment Canada Datamart (Brandon station `s0000492`) | No |
+| Road closures & events (≤60 km) | [Manitoba 511](https://www.manitoba511.ca) | `MB511_API_KEY` |
+| Highway driving conditions (≤80 km) | Manitoba 511 | `MB511_API_KEY` |
+| Highway cameras (≤120 km, nearest 8) | Manitoba 511 | `MB511_API_KEY` |
 
-**Net result:** Once deployed, the site stays useful with zero ongoing maintenance. The only manual action is occasional content tweaks (city name, layout, etc.).
+Features that could not be automated (community incident reports, email subscriptions) were removed.
 
-## Pages
+## Security posture
 
-| Page | Purpose |
-|---|---|
-| `index.html` | Live dashboard: weather hero, alert banner, status cards, incident list, map |
-| `report.html` | Submit a community incident with a map pin |
-| `alerts.html` | Email subscription (Netlify Forms) |
-| `about.html` | Data sources & disclaimer |
-| `thanks.html` | Post-subscribe confirmation |
+- **No backend at all.** The published site is read-only static files — there are no endpoints to abuse, no forms, no database, no sessions. "Unusual HTTP requests" have nothing to hit.
+- **DDoS**: GitHub Pages sits behind GitHub's global CDN, which absorbs volumetric attacks. There is no per-site rate limiting to configure (and none needed — a request can only ever fetch a cached file).
+- **Secret handling**: the 511 key lives in an encrypted Actions secret, masked in logs, used ~3 requests per 20 minutes from GitHub's runners only.
+- **Browser hardening**: strict Content-Security-Policy via `<meta>` (GitHub Pages can't set HTTP headers), no inline scripts, Subresource Integrity on the Leaflet CDN files, `rel="noopener"` on external links, a JS frame-busting guard, `referrer` policy set.
+- **Workflow hardening**: least-privilege permissions (`contents: read` + Pages deploy), pinned major action versions, 10-minute timeout, concurrency lock.
+
+Known limitations of static hosting: real HTTP security headers (HSTS, X-Frame-Options) can't be customized on GitHub Pages, and `frame-ancestors` is ignored in meta CSP — the JS frame guard is the fallback. If you ever need those, put Cloudflare (free) in front of the Pages site.
+
+## GitHub Actions notes
+
+- Scheduled runs can be delayed a few minutes at busy times — normal.
+- **GitHub disables cron workflows after 60 days without repo activity.** You'll get an email; one click re-enables it. Any commit also resets the clock.
+- Usage: ~72 runs/day × ~30 s. Public repos get unlimited Actions minutes.
+- Each run "fails soft": if one source is down, the other files still update and the previous data stays live.
+
+## Local development
+
+```bash
+npm install
+node scripts/fetch-data.mjs      # fetch real data into data/ (weather + EC work without a key)
+npx serve .                      # any static server works; then open http://localhost:3000
+```
+
+To test the 511 sources locally (PowerShell):
+
+```powershell
+$env:MB511_API_KEY = "your-key"
+node scripts/fetch-data.mjs
+```
 
 ## Project layout
 
 ```
 citypulse/
-├── *.html
+├── index.html / about.html
 ├── css/style.css
 ├── js/
-│   ├── data.js        # CITY_CONFIG, WMO code mapping, fetch() helpers
-│   ├── main.js        # Dashboard render: weather, alerts, incidents, map
-│   └── report.js      # Submit form
-├── netlify/
-│   └── functions/
-│       ├── reports.mjs       # GET/POST /api/reports
-│       ├── get-weather.mjs   # GET /api/weather (with live fallback)
-│       ├── poll-weather.mjs  # Cron */30min — fetches Open-Meteo
-│       └── poll-alerts.mjs   # Cron */15min — parses EC weather XML
-├── netlify.toml
-├── package.json       # @netlify/blobs, fast-xml-parser
-└── .gitignore
+│   ├── data.js               # CITY_CONFIG, WMO mapping, JSON loaders
+│   └── main.js               # Dashboard render: weather, alerts, incidents, conditions, cameras, map
+├── data/                      # Machine-written by the workflow (seed files committed)
+│   ├── weather.json
+│   ├── incidents.json
+│   └── roads.json
+├── scripts/fetch-data.mjs     # All upstream fetching + filtering
+├── .github/workflows/deploy.yml
+└── package.json               # fast-xml-parser (EC alerts XML)
 ```
 
 ## Customize for a different town
 
-Three places to edit if pointing this at a different Canadian community:
-
 1. **`js/data.js`** → `CITY_CONFIG.name`, `center`, `zoom`
-2. **`netlify/functions/poll-weather.mjs`** → `LAT`, `LNG`, `TZ`
-3. **`netlify/functions/poll-alerts.mjs`** → `SITE_CODE` (find your nearest at https://dd.weather.gc.ca/today/citypage_weather/MB/00/ — open files to identify the city, then copy the `s0000XXX` code)
-
-Common Manitoba site codes:
-- `s0000492` — Brandon (closest to Neepawa)
-- `s0000193` — Winnipeg
-- `s0000395` — Dauphin
-- `s0000626` — Portage la Prairie
-
-## API endpoints
-
-| Endpoint | Method | Returns |
-|---|---|---|
-| `/api/reports` | GET | `[{id, type, severity, area, description, lat?, lng?, source, verified, createdAt, expiresAt?}]` |
-| `/api/reports` | POST | Created report (community submissions only — server forces `source: "community"`) |
-| `/api/weather` | GET | Cached weather (`{current, daily, hourly, fetchedAt}`); falls back to live fetch if cache is missing or >1h stale |
-
-## Local development
-
-```bash
-npm install -g netlify-cli
-npm install
-netlify dev
-```
-
-First run links the directory to your Netlify site. Then everything runs at `http://localhost:8888` — the dev server proxies functions and serves static files together.
-
-**To manually trigger scheduled functions while developing:**
-```bash
-netlify functions:invoke poll-weather --no-identity
-netlify functions:invoke poll-alerts --no-identity
-```
-
-## Deploy
-
-```bash
-git add .
-git commit -m "Add automated weather + EC alerts"
-git push
-```
-
-Netlify auto-detects:
-- Static site in repo root
-- Functions in `netlify/functions/`
-- `package.json` → installs `@netlify/blobs` and `fast-xml-parser`
-- Schedule config inside each function file → registers cron jobs
-
-After the first deploy, cron starts running. Check **Functions** in the Netlify dashboard — you'll see `poll-weather` and `poll-alerts` listed with invocation logs.
-
-## Free-tier limits (Netlify)
-
-- **Functions:** 125k invocations/month
-- **Scheduled invocations:** 4 per hour from `poll-alerts` + 2 per hour from `poll-weather` = ~4,400/month, plus on-demand reads from visitors
-- **Blobs:** 5 GB storage, 100 GB egress
-- **Forms:** 100 submissions/month
-
-For a town of ~3,500 people, you'll never come close to these limits.
+2. **`scripts/fetch-data.mjs`** → `CENTER`, radii, `NEARBY_KEYWORDS`/`NEARBY_HIGHWAYS`, `EC_SITE_CODE` (find yours at https://dd.weather.gc.ca/today/citypage_weather/MB/00/)
 
 ## Data caveats
 
-- **EC alerts** are pulled from **Brandon's** forecast region — the closest Environment Canada coverage to Neepawa. Brandon and Neepawa share most severe-weather alerts (thunderstorms, blizzards, tornadoes, freezing rain), but very localized warnings may not appear.
-- **Open-Meteo** uses GFS/ECMWF model interpolation for Neepawa's exact coordinates. Accuracy is comparable to Environment Canada for general conditions; for ground-truth observations the nearest official station is Brandon Airport (~80km SW).
-- **Community reports** are user-submitted and unverified. The badge ✓ Official appears only on EC-sourced alerts.
-
-## Roadmap (optional future work)
-
-- **Manitoba 511 road conditions** — public API exists at `manitoba511.ca/developers/doc` but requires a free developer key + 10 calls/min rate limit. Skipped per "zero maintenance" goal; add if you want road closure data.
-- **Email alert sending** — `alerts.html` collects subscriptions, but actually sending alerts requires a 4th scheduled function + an email provider (SendGrid free tier = 100/day).
-- **Push notifications** via the Web Push API + Netlify Functions.
-- **Historical archive** by writing daily snapshots to a separate Blobs key.
+- **EC alerts** come from **Brandon's** forecast region — the closest coverage to Neepawa; very localized warnings may not appear.
+- **Open-Meteo** interpolates model data to Neepawa's coordinates; nearest official station is Brandon Airport.
+- **Road conditions** are seasonal — Manitoba 511 publishes them mainly fall through spring; the dashboard shows a friendly empty state otherwise.
+- MB511 v2 `roadconditions` field shapes vary; the fetcher parses defensively (polyline geometry → point coordinates → highway-name fallback). If the section stays empty in winter, check the Actions run log.

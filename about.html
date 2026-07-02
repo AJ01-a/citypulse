@@ -3,11 +3,13 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="description" content="How CityPulse works, where data comes from, and how to contribute." />
-  <title>About — CityPulse</title>
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self'; base-uri 'self'; form-action 'none'; object-src 'none'; upgrade-insecure-requests" />
+  <meta name="referrer" content="strict-origin-when-cross-origin" />
+  <meta name="description" content="How CityPulse Neepawa works and where its data comes from." />
+  <title>About — CityPulse Neepawa</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="css/style.css" />
 </head>
 <body>
@@ -16,14 +18,13 @@
       <a href="index.html" class="brand">
         <span class="pulse-dot"></span>
         <span>City<strong>Pulse</strong></span>
+        <span class="brand-loc">Neepawa</span>
       </a>
       <button class="nav-toggle" aria-label="Open menu" aria-expanded="false">
         <span></span><span></span><span></span>
       </button>
       <ul class="nav-links">
         <li><a href="index.html">Dashboard</a></li>
-        <li><a href="report.html">Report</a></li>
-        <li><a href="alerts.html">Alerts</a></li>
         <li><a href="about.html" class="active">About</a></li>
       </ul>
     </nav>
@@ -32,32 +33,27 @@
   <section class="page-head">
     <div class="container">
       <p class="eyebrow">About</p>
-      <h1>One page for everything affecting your day.</h1>
-      <p class="lede">CityPulse aggregates community reports and public data so you can see — at a glance — whether your neighborhood is having a power outage, water advisory, internet disruption, or road closure.</p>
+      <h1>Everything affecting your day in Neepawa, on one page.</h1>
+      <p class="lede">CityPulse pulls live data from official public feeds — weather, severe-weather alerts, highway conditions, closures, and cameras — and refreshes itself around the clock. There is no human in the loop.</p>
     </div>
   </section>
 
   <section class="container content">
     <div class="prose">
-      <h2>Why this exists</h2>
-      <p>Most utilities have a dashboard. They're slow to update, hard to find, and live on five different websites. By the time the electric company confirms an outage, your neighbors already know. CityPulse turns that informal knowledge into a real-time map.</p>
-
-      <h2>How it works</h2>
-      <ol>
-        <li><strong>Neighbors report.</strong> Anyone can submit an incident in under 30 seconds — no account required.</li>
-        <li><strong>Reports cluster on a map.</strong> Multiple reports in the same area raise confidence that something is really happening.</li>
-        <li><strong>Public feeds enrich the data.</strong> Where available, we pull from utility status pages, 511 traffic feeds, and local emergency RSS.</li>
-        <li><strong>Alerts go out.</strong> Subscribers get an email when something matching their filters is reported.</li>
-      </ol>
-
-      <h2>Data sources</h2>
-      <p>Currently integrated (replace with your local sources):</p>
+      <h2>What updates automatically</h2>
       <ul>
-        <li>Community reports — stored in browser localStorage (MVP); migrate to a database for production</li>
-        <li>Local power utility outage map (public JSON endpoint)</li>
-        <li>Department of Transportation 511 traffic feed</li>
-        <li>Water utility advisory RSS</li>
-        <li>City emergency management Twitter / Mastodon feed</li>
+        <li><strong>Current weather &amp; 4-day forecast</strong> — <a href="https://open-meteo.com" target="_blank" rel="noopener">Open-Meteo</a>, for Neepawa's exact coordinates. Refreshed every 30 minutes.</li>
+        <li><strong>Severe weather alerts</strong> — Environment Canada (Brandon forecast region, the closest coverage to Neepawa). Checked every 15 minutes; official alerts appear as a red banner.</li>
+        <li><strong>Road closures &amp; traffic events</strong> — <a href="https://www.manitoba511.ca" target="_blank" rel="noopener">Manitoba 511</a>, filtered to within 60&nbsp;km of Neepawa. Checked every 15 minutes.</li>
+        <li><strong>Highway driving conditions</strong> — Manitoba 511 winter road condition reports for highways around Neepawa (PTH&nbsp;16, PTH&nbsp;5, Hwy&nbsp;1 and area). Checked every 30 minutes; mainly published in winter.</li>
+        <li><strong>Highway cameras</strong> — the nearest Manitoba 511 cameras, with images that refresh while you have the page open.</li>
+      </ul>
+
+      <h2>Data caveats</h2>
+      <ul>
+        <li>Environment Canada alerts come from the <strong>Brandon</strong> forecast region — Neepawa shares almost all severe-weather alerts with it, but very localized warnings may not appear.</li>
+        <li>Weather values are model data interpolated to Neepawa's coordinates; the nearest official observation station is Brandon Airport.</li>
+        <li>Road conditions are seasonal — Manitoba 511 reports them mainly from fall to spring.</li>
       </ul>
 
       <h2>What this is not</h2>
@@ -66,17 +62,16 @@
         <p>If you see downed power lines, a fire, a gas leak, or anyone hurt — <strong>call 911</strong>. CityPulse is informational only and should never delay an emergency call.</p>
       </div>
 
-      <h2>Roadmap</h2>
+      <h2>Useful links for Neepawa</h2>
       <ul>
-        <li>SMS alerts (Twilio)</li>
-        <li>Historical incident archive &amp; trends</li>
-        <li>Push notifications via Web Push API</li>
-        <li>Multi-city support &amp; community moderation</li>
-        <li>Public API for journalists and researchers</li>
+        <li><a href="https://www.hydro.mb.ca/outages/" target="_blank" rel="noopener">Manitoba Hydro outage map</a> — power outages</li>
+        <li><a href="https://www.manitoba511.ca" target="_blank" rel="noopener">Manitoba 511</a> — province-wide road map (or dial 511)</li>
+        <li><a href="https://weather.gc.ca/city/pages/mb-33_metric_e.html" target="_blank" rel="noopener">Environment Canada — Brandon forecast</a></li>
+        <li><a href="https://www.neepawa.ca" target="_blank" rel="noopener">Town of Neepawa</a> — municipal notices</li>
       </ul>
 
-      <h2>Open source</h2>
-      <p>The entire frontend is static HTML, CSS, and JavaScript. Fork it, fix it, deploy your own city's tracker. Backend integrations are designed as Netlify Functions stubs ready to be filled in.</p>
+      <h2>How it's built</h2>
+      <p>Static HTML/CSS/JS hosted on GitHub Pages. A scheduled GitHub Actions workflow polls the public feeds every 20 minutes and republishes the site with fresh data. There is no server and no database — which also means there is nothing to hack, nothing to overload, and nothing that costs money to run. The Manitoba 511 API key lives in an encrypted GitHub secret and never reaches the browser.</p>
     </div>
   </section>
 
@@ -87,27 +82,26 @@
           <span class="pulse-dot"></span>
           <span>City<strong>Pulse</strong></span>
         </p>
-        <p class="muted small">Community-powered city status. Not affiliated with any utility provider.</p>
+        <p class="muted small">Fully automated status dashboard for Neepawa, Manitoba. Data refreshes itself — no human in the loop.</p>
       </div>
       <div>
-        <h4>Navigate</h4>
+        <h4>Data sources</h4>
         <ul>
-          <li><a href="index.html">Dashboard</a></li>
-          <li><a href="report.html">Report</a></li>
-          <li><a href="alerts.html">Alerts</a></li>
-          <li><a href="about.html">About</a></li>
+          <li><a href="https://www.manitoba511.ca" target="_blank" rel="noopener">Manitoba 511</a></li>
+          <li><a href="https://weather.gc.ca" target="_blank" rel="noopener">Environment Canada</a></li>
+          <li><a href="https://open-meteo.com" target="_blank" rel="noopener">Open-Meteo</a></li>
         </ul>
       </div>
       <div>
-        <h4>Resources</h4>
+        <h4>Emergency</h4>
         <ul>
-          <li><a href="https://www.ready.gov/" target="_blank" rel="noopener">Emergency Preparedness</a></li>
           <li><a href="tel:911">Emergencies: 911</a></li>
-          <li><a href="tel:311">Non-Emergency: 311</a></li>
+          <li><a href="tel:511">Road info by phone: 511</a></li>
+          <li><a href="https://www.hydro.mb.ca/outages/" target="_blank" rel="noopener">Manitoba Hydro outages</a></li>
         </ul>
       </div>
     </div>
-    <p class="copyright">&copy; <span id="year"></span> CityPulse. Open data, by neighbors, for neighbors.</p>
+    <p class="copyright">&copy; <span id="year"></span> CityPulse · Not affiliated with the Town of Neepawa or any utility.</p>
   </footer>
 
   <script src="js/main.js"></script>

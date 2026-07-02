@@ -1,15 +1,14 @@
 {
   "name": "citypulse",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "type": "module",
   "private": true,
-  "description": "Community-powered local outage and disruption tracker.",
+  "description": "Fully automated live status dashboard for Neepawa, Manitoba — static site on GitHub Pages, data via GitHub Actions.",
   "scripts": {
-    "dev": "netlify dev",
-    "start": "netlify dev"
+    "fetch-data": "node scripts/fetch-data.mjs",
+    "dev": "npx serve ."
   },
   "dependencies": {
-    "@netlify/blobs": "^7.4.0",
     "fast-xml-parser": "^4.4.0"
   }
 }

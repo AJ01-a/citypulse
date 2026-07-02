@@ -1,0 +1,51 @@
+name: Fetch data & deploy to Pages
+
+on:
+  schedule:
+    - cron: "*/20 * * * *"   # every 20 min (GitHub may delay a few minutes)
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+
+# Least privilege: only what Pages deployment needs.
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Never run two deploys at once.
+concurrency:
+  group: pages-deploy
+  cancel-in-progress: false
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Fetch live data
+        run: node scripts/fetch-data.mjs
+        env:
+          MB511_API_KEY: ${{ secrets.MB511_API_KEY }}
+
+      - name: Prune non-site files from artifact
+        run: rm -rf node_modules scripts .github
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: .
+
+      - id: deployment
+        uses: actions/deploy-pages@v4

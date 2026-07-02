@@ -1,56 +1,63 @@
 // ----- Configuration -----
-// Edit these for your city.
 const CITY_CONFIG = {
   name: "Neepawa, Manitoba",
   center: [50.2289, -99.4661],
-  zoom: 14,
+  zoom: 10,
 };
 
 const TYPE_META = {
-  power:    { icon: "⚡",  label: "Power",    color: "#dc2626" },
-  water:    { icon: "💧", label: "Water",    color: "#2563eb" },
-  internet: { icon: "📡", label: "Internet", color: "#7c3aed" },
-  road:     { icon: "🚧", label: "Road",     color: "#ea580c" },
-  weather:  { icon: "🌩", label: "Weather",  color: "#0891b2" },
+  road:    { icon: "🚧", label: "Road",    color: "#eb6834" },
+  weather: { icon: "🌩", label: "Weather", color: "#2a78d6" },
 };
 
-const REPORTS_URL = '/api/reports';
-const WEATHER_URL = '/api/weather';
+// Driving-condition levels from /api/roads (see poll-conditions.mjs)
+const CONDITION_META = {
+  good:    { label: "Good driving",   badge: "Good",     cls: "ok" },
+  fair:    { label: "Use caution",    badge: "Caution",  cls: "warn" },
+  poor:    { label: "Poor — icy/snow", badge: "Poor",    cls: "bad" },
+  closed:  { label: "Closed / not recommended", badge: "Closed", cls: "bad" },
+  unknown: { label: "No report",      badge: "No report", cls: "muted" },
+};
 
-// ----- Backend calls -----
+// Static JSON written by GitHub Actions (scripts/fetch-data.mjs).
+// Relative paths so the site works at any base path (e.g. user.github.io/citypulse/).
+const REPORTS_URL = 'data/incidents.json';
+const WEATHER_URL = 'data/weather.json';
+const ROADS_URL   = 'data/roads.json';
+
+// ----- Data loading -----
 async function loadReports() {
   try {
     const res = await fetch(REPORTS_URL, { cache: 'no-store' });
     if (!res.ok) throw new Error('fetch failed: ' + res.status);
     const data = await res.json();
-    return Array.isArray(data) ? data.sort((a, b) => b.createdAt - a.createdAt) : [];
+    const list = Array.isArray(data) ? data : (data.incidents || []);
+    return list.sort((a, b) => b.createdAt - a.createdAt);
   } catch (e) {
     console.warn('loadReports failed, returning empty list:', e);
     return [];
   }
 }
 
-async function addReport(report) {
-  const res = await fetch(REPORTS_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(report),
-  });
-  if (!res.ok) {
-    const msg = await res.text().catch(() => '');
-    throw new Error(msg || ('Submit failed: ' + res.status));
-  }
-  return res.json();
-}
-
 async function loadWeather() {
   try {
-    const res = await fetch(WEATHER_URL);
+    const res = await fetch(WEATHER_URL, { cache: 'no-store' });
     if (!res.ok) throw new Error('fetch failed: ' + res.status);
     return await res.json();
   } catch (e) {
     console.warn('loadWeather failed:', e);
     return null;
+  }
+}
+
+async function loadRoads() {
+  try {
+    const res = await fetch(ROADS_URL, { cache: 'no-store' });
+    if (!res.ok) throw new Error('fetch failed: ' + res.status);
+    return await res.json();
+  } catch (e) {
+    console.warn('loadRoads failed:', e);
+    return { conditions: [], cameras: [] };
   }
 }
 
@@ -94,6 +101,7 @@ function wmoMeta(code, isDay = 1) {
 
 // ----- Formatting -----
 function relativeTime(ts) {
+  if (!ts) return "";
   const diff = Date.now() - ts;
   const m = Math.floor(diff / 60000);
   if (m < 1) return "just now";
@@ -115,7 +123,7 @@ function formatDayShort(iso) {
 }
 
 function summarize(reports) {
-  const counts = { power: 0, water: 0, internet: 0, road: 0, weather: 0 };
+  const counts = { road: 0, weather: 0 };
   let worst = "ok";
   for (const r of reports) {
     counts[r.type] = (counts[r.type] || 0) + 1;
@@ -123,4 +131,13 @@ function summarize(reports) {
     else if (r.severity === "moderate" && worst !== "bad") worst = "warn";
   }
   return { counts, worst, total: reports.length };
+}
+
+// Worst driving-condition level across nearby segments.
+function worstConditionLevel(segments) {
+  const rank = ["closed", "poor", "fair", "good"];
+  for (const level of rank) {
+    if (segments.some(s => s.level === level)) return level;
+  }
+  return "unknown";
 }
