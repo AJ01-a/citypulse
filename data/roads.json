@@ -1,6 +1,119 @@
 {
  "conditions": [],
  "conditionsFetchedAt": null,
- "cameras": [],
- "camerasFetchedAt": null
+ "cameras": [
+  {
+   "id": 2,
+   "roadway": "Hwy 16",
+   "location": "Arden Hwy 16",
+   "direction": "Westbound",
+   "lat": 50.225502,
+   "lng": -99.24401,
+   "distanceKm": 16,
+   "views": [
+    {
+     "id": 2,
+     "url": "https://www.manitoba511.ca/map/Cctv/2",
+     "description": ""
+    }
+   ]
+  },
+  {
+   "id": 15,
+   "roadway": "Hwy 10",
+   "location": "Minnedosa Hwy 10",
+   "direction": "Unknown",
+   "lat": 50.269818,
+   "lng": -99.903941,
+   "distanceKm": 31,
+   "views": [
+    {
+     "id": 15,
+     "url": "https://www.manitoba511.ca/map/Cctv/15",
+     "description": "N/A"
+    }
+   ]
+  },
+  {
+   "id": 21,
+   "roadway": "Hwy 1",
+   "location": "Hwy 1 Austin",
+   "direction": "Unknown",
+   "lat": 49.953245,
+   "lng": -98.950068,
+   "distanceKm": 48,
+   "views": [
+    {
+     "id": 21,
+     "url": "https://www.manitoba511.ca/map/Cctv/21",
+     "description": "N/A"
+    }
+   ]
+  },
+  {
+   "id": 52,
+   "roadway": "Hwy 1",
+   "location": "Hwy 1, east of Brandon",
+   "direction": "Unknown",
+   "lat": 49.886992042265845,
+   "lng": -99.90979519061284,
+   "distanceKm": 49,
+   "views": [
+    {
+     "id": 54,
+     "url": "https://www.manitoba511.ca/map/Cctv/54",
+     "description": ""
+    }
+   ]
+  },
+  {
+   "id": 51,
+   "roadway": "Hwy 1",
+   "location": "Hwy 1, west of Brandon",
+   "direction": "Unknown",
+   "lat": 49.88624967446833,
+   "lng": -99.99634664550801,
+   "distanceKm": 54,
+   "views": [
+    {
+     "id": 53,
+     "url": "https://www.manitoba511.ca/map/Cctv/53",
+     "description": ""
+    }
+   ]
+  },
+  {
+   "id": 53,
+   "roadway": "Hwy 1",
+   "location": "Hwy 1, west of Portage la Prairie",
+   "direction": "Unknown",
+   "lat": 49.974712565975764,
+   "lng": -98.41073379696448,
+   "distanceKm": 80,
+   "views": [
+    {
+     "id": 55,
+     "url": "https://www.manitoba511.ca/map/Cctv/55",
+     "description": ""
+    }
+   ]
+  },
+  {
+   "id": 36,
+   "roadway": "Hwy 16",
+   "location": "Shoal Lake Hwy 16",
+   "direction": "Unknown",
+   "lat": 50.44239,
+   "lng": -100.582156,
+   "distanceKm": 83,
+   "views": [
+    {
+     "id": 36,
+     "url": "https://www.manitoba511.ca/map/Cctv/36",
+     "description": "N/A"
+    }
+   ]
+  }
+ ],
+ "camerasFetchedAt": 1783033545594
 }

@@ -103,6 +103,31 @@ async function writeData(name, obj) {
   console.log(`wrote data/${name}`);
 }
 
+// When a source fails, don't deploy the stale copy committed in the repo —
+// grab the currently-live file from the published site instead, so the site
+// never regresses to older data. (In GitHub Actions, GITHUB_REPOSITORY is
+// "owner/repo", which maps to https://owner.github.io/repo/.)
+function liveSiteBase() {
+  const repo = process.env.GITHUB_REPOSITORY;
+  if (!repo || !repo.includes("/")) return null;
+  const [owner, name] = repo.split("/");
+  return `https://${owner.toLowerCase()}.github.io/${name}`;
+}
+
+async function preserveDeployed(name) {
+  const base = liveSiteBase();
+  if (!base) return;
+  try {
+    const res = await fetch(`${base}/data/${name}?t=${Date.now()}`);
+    if (!res.ok) return;
+    const json = await res.json();
+    await writeFile(new URL(name, DATA_DIR), JSON.stringify(json, null, 1));
+    console.log(`preserved currently-deployed data/${name}`);
+  } catch (err) {
+    console.warn(`could not preserve deployed ${name}:`, err.message);
+  }
+}
+
 // ---------- weather (Open-Meteo, no key) ----------
 
 async function buildWeather() {
@@ -331,6 +356,7 @@ async function main() {
     filesWritten++;
   } catch (err) {
     failures.push("weather: " + err.message);
+    await preserveDeployed("weather.json");
   }
 
   // Incidents: EC alerts + 511 events, one combined snapshot
@@ -351,6 +377,8 @@ async function main() {
       .sort((a, b) => b.createdAt - a.createdAt);
     await writeData("incidents.json", { fetchedAt: Date.now(), incidents });
     filesWritten++;
+  } else {
+    await preserveDeployed("incidents.json");
   }
 
   // Roads: conditions + cameras
@@ -368,7 +396,11 @@ async function main() {
         camerasFetchedAt: cameras !== null ? Date.now() : null,
       });
       filesWritten++;
+    } else {
+      await preserveDeployed("roads.json");
     }
+  } else {
+    await preserveDeployed("roads.json");
   }
 
   if (filesWritten === 0) {

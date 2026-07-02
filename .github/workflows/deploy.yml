@@ -2,7 +2,9 @@ name: Fetch data & deploy to Pages
 
 on:
   schedule:
-    - cron: "*/20 * * * *"   # every 20 min (GitHub may delay a few minutes)
+    # Off-peak minutes on purpose: :00/:20/:40 are GitHub's most congested
+    # cron slots and get dropped; odd minutes fire far more reliably.
+    - cron: "9,29,49 * * * *"
   push:
     branches: [main, master]
   workflow_dispatch:
