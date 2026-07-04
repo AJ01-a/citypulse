@@ -2,18 +2,21 @@ name: Fetch data & deploy to Pages
 
 on:
   schedule:
-    # Off-peak minutes on purpose: :00/:20/:40 are GitHub's most congested
-    # cron slots and get dropped; odd minutes fire far more reliably.
-    - cron: "9,29,49 * * * *"
+    # Every 6 minutes, odd minutes on purpose: :00/:20/:40 are GitHub's most
+    # congested cron slots and get dropped; odd minutes fire far more reliably.
+    # GitHub still drops/delays many scheduled firings under load — the dense
+    # schedule means even a 50% drop rate keeps real-world updates ~10 min apart.
+    - cron: "1,7,13,19,25,31,37,43,49,55 * * * *"
   push:
     branches: [main, master]
   workflow_dispatch:
 
-# Least privilege: only what Pages deployment needs.
+# Least privilege: Pages deployment + actions:write for the cron keepalive.
 permissions:
   contents: read
   pages: write
   id-token: write
+  actions: write
 
 # Never run two deploys at once.
 concurrency:
@@ -29,6 +32,20 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url || steps.deployment-retry.outputs.page_url }}
     steps:
       - uses: actions/checkout@v7
+
+      # GitHub silently disables scheduled workflows after 60 days without
+      # repo activity. Re-enabling the workflow via the API resets that timer,
+      # so the site can never freeze without a human noticing.
+      - name: Keep scheduled runs alive
+        if: github.event_name == 'schedule'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          curl -sS -X PUT \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/workflows/deploy.yml/enable"
 
       - uses: actions/setup-node@v6
         with:

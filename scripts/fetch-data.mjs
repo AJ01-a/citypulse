@@ -25,6 +25,10 @@ const API_KEY = process.env.MB511_API_KEY || "";
 
 const DATA_DIR = new URL("../data/", import.meta.url);
 
+// A hung upstream must never stall the whole run until the job-level kill
+// (which would skip the deploy entirely) — cap every request instead.
+const FETCH_TIMEOUT_MS = 30_000;
+
 // ---------- helpers ----------
 
 function distanceKm(aLat, aLng, bLat, bLng) {
@@ -87,7 +91,10 @@ function minDistanceKm(points) {
 }
 
 async function fetchJson(url) {
-  const res = await fetch(url, { headers: { "Accept": "application/json" } });
+  const res = await fetch(url, {
+    headers: { "Accept": "application/json" },
+    signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+  });
   if (!res.ok) throw new Error(`upstream ${res.status} for ${url.split("?")[0]}`);
   return res.json();
 }
@@ -114,18 +121,24 @@ function liveSiteBase() {
   return `https://${owner.toLowerCase()}.github.io/${name}`;
 }
 
-async function preserveDeployed(name) {
+async function deployedJson(name) {
   const base = liveSiteBase();
-  if (!base) return;
+  if (!base) return null;
   try {
-    const res = await fetch(`${base}/data/${name}?t=${Date.now()}`);
-    if (!res.ok) return;
-    const json = await res.json();
-    await writeFile(new URL(name, DATA_DIR), JSON.stringify(json, null, 1));
-    console.log(`preserved currently-deployed data/${name}`);
+    const res = await fetch(`${base}/data/${name}?t=${Date.now()}`, { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
+    if (!res.ok) return null;
+    return await res.json();
   } catch (err) {
-    console.warn(`could not preserve deployed ${name}:`, err.message);
+    console.warn(`could not fetch deployed ${name}:`, err.message);
+    return null;
   }
+}
+
+async function preserveDeployed(name) {
+  const json = await deployedJson(name);
+  if (json === null) return;
+  await writeFile(new URL(name, DATA_DIR), JSON.stringify(json, null, 1));
+  console.log(`preserved currently-deployed data/${name}`);
 }
 
 // ---------- weather (Open-Meteo, no key) ----------
@@ -179,7 +192,7 @@ async function findLatestEcXmlUrl() {
     const dirUrl = `https://dd.weather.gc.ca/today/citypage_weather/${EC_PROV}/${hh}/`;
     let html;
     try {
-      const res = await fetch(dirUrl);
+      const res = await fetch(dirUrl, { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
       if (!res.ok) continue;
       html = await res.text();
     } catch { continue; }
@@ -193,7 +206,7 @@ async function findLatestEcXmlUrl() {
 async function buildEcAlerts() {
   const xmlUrl = await findLatestEcXmlUrl();
   if (!xmlUrl) throw new Error("no EC citypage XML found in recent hours");
-  const res = await fetch(xmlUrl);
+  const res = await fetch(xmlUrl, { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
   if (!res.ok) throw new Error(`EC upstream ${res.status}`);
   const xml = await res.text();
 
@@ -202,6 +215,11 @@ async function buildEcAlerts() {
   let events = doc?.siteData?.warnings?.event;
   if (!events) events = [];
   if (!Array.isArray(events)) events = [events];
+
+  // EC keeps "ended" entries in the warnings block for a while after a
+  // warning expires — those must not render as active alerts.
+  events = events.filter(ev =>
+    !String(ev["@_type"] || ev.type || "").toLowerCase().includes("ended"));
 
   return events.map((ev, i) => {
     const type = ev["@_type"] || ev.type || "";
@@ -343,6 +361,190 @@ async function buildCameras() {
     .filter(c => c.views.length > 0);
 }
 
+// ---------- Hazard Watch: air quality / wildfire smoke (Open-Meteo, no key) ----------
+
+// Canadian AQHI from pollutant concentrations. The official index uses
+// 3-hour averages; this is the instantaneous version, computed from the
+// latest values. Gases arrive in µg/m³ and the formula needs ppb.
+export function computeAqhi(pm25, ozone, no2) {
+  const o3ppb = (ozone ?? 0) / 1.963;
+  const no2ppb = (no2 ?? 0) / 1.88;
+  const raw = (1000 / 10.4) * (
+    (Math.exp(0.000537 * o3ppb) - 1) +
+    (Math.exp(0.000871 * no2ppb) - 1) +
+    (Math.exp(0.000487 * (pm25 ?? 0)) - 1)
+  );
+  return Math.max(1, Math.round(raw));
+}
+
+export function aqhiCategory(aqhi) {
+  if (aqhi <= 3) return "Low";
+  if (aqhi <= 6) return "Moderate";
+  if (aqhi <= 10) return "High";
+  return "Very high";
+}
+
+async function buildAirQuality() {
+  const url =
+    `https://air-quality-api.open-meteo.com/v1/air-quality` +
+    `?latitude=${CENTER.lat}&longitude=${CENTER.lng}` +
+    `&current=pm2_5,pm10,ozone,nitrogen_dioxide,us_aqi` +
+    `&timezone=${encodeURIComponent(TZ)}`;
+  const data = await fetchJson(url);
+  const cur = data.current || {};
+  if (typeof cur.pm2_5 !== "number") throw new Error("air-quality response missing pm2_5");
+  const aqhi = computeAqhi(cur.pm2_5, cur.ozone, cur.nitrogen_dioxide);
+  return {
+    fetchedAt: Date.now(),
+    observedAt: cur.time ?? null,
+    pm25: cur.pm2_5,
+    pm10: cur.pm10 ?? null,
+    usAqi: cur.us_aqi ?? null,
+    aqhi,
+    category: aqhiCategory(aqhi),
+  };
+}
+
+// ---------- Hazard Watch: wildfire hotspots (NRCan CWFIS, no key) ----------
+
+const FIRE_RADIUS_KM = 200;
+const FIRE_CLUSTER_KM = 10;
+const CWFIS = "https://cwfis.cfs.nrcan.gc.ca/downloads/hotspots";
+
+function compassFrom(lat, lng) {
+  const rad = Math.PI / 180;
+  const dLng = (lng - CENTER.lng) * rad;
+  const y = Math.sin(dLng) * Math.cos(lat * rad);
+  const x = Math.cos(CENTER.lat * rad) * Math.sin(lat * rad) -
+            Math.sin(CENTER.lat * rad) * Math.cos(lat * rad) * Math.cos(dLng);
+  const deg = (Math.atan2(y, x) / rad + 360) % 360;
+  return ["N", "NE", "E", "SE", "S", "SW", "W", "NW"][Math.round(deg / 45) % 8];
+}
+
+async function fetchHotspotCsv(stamp) {
+  const res = await fetch(`${CWFIS}/${stamp}.csv`, { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
+  if (!res.ok) return null;
+  return res.text();
+}
+
+async function buildWildfires() {
+  // CWFIS publishes one continent-wide CSV of satellite fire detections per
+  // UTC day. Early in the day today's file is missing or thin, so merge
+  // today + yesterday.
+  const now = Date.now();
+  const stamps = [now, now - 864e5]
+    .map(t => new Date(t).toISOString().slice(0, 10).replaceAll("-", ""));
+  const texts = (await Promise.all(stamps.map(s => fetchHotspotCsv(s).catch(() => null))))
+    .filter(t => t !== null);
+  if (texts.length === 0) throw new Error("no CWFIS hotspot files available");
+
+  const points = [];
+  for (const text of texts) {
+    const lines = text.trim().split("\n");
+    const header = lines[0].split(",").map(s => s.trim().toLowerCase());
+    const iLat = header.indexOf("lat"), iLng = header.indexOf("lon");
+    const iDate = header.indexOf("rep_date"), iFuel = header.indexOf("fuel"), iArea = header.indexOf("estarea");
+    if (iLat < 0 || iLng < 0) continue;
+    for (let i = 1; i < lines.length; i++) {
+      const cols = lines[i].split(",");
+      const lat = parseFloat(cols[iLat]), lng = parseFloat(cols[iLng]);
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) continue;
+      // agricultural burns are detected too (fuel "farm") — not wildfires
+      if (iFuel >= 0 && String(cols[iFuel]).trim().toLowerCase() === "farm") continue;
+      const dist = distanceKm(CENTER.lat, CENTER.lng, lat, lng);
+      if (dist > FIRE_RADIUS_KM) continue;
+      points.push({
+        lat, lng, dist,
+        seen: iDate >= 0 ? String(cols[iDate] ?? "").trim() : "",
+        areaHa: iArea >= 0 ? parseFloat(cols[iArea]) || 0 : 0,
+      });
+    }
+  }
+
+  // Satellite hotspots arrive as bursts of adjacent pixels — greedily cluster
+  // them into distinct fire zones, nearest first.
+  points.sort((a, b) => a.dist - b.dist);
+  const clusters = [];
+  for (const p of points) {
+    const c = clusters.find(c => distanceKm(c.lat, c.lng, p.lat, p.lng) <= FIRE_CLUSTER_KM);
+    if (c) {
+      c.count++;
+      c.areaHa = Math.max(c.areaHa, p.areaHa);
+      if (p.seen > c.lastSeen) c.lastSeen = p.seen;
+    } else if (clusters.length < 20) {
+      clusters.push({
+        lat: p.lat, lng: p.lng,
+        distanceKm: Math.round(p.dist),
+        direction: compassFrom(p.lat, p.lng),
+        count: 1,
+        areaHa: p.areaHa,
+        lastSeen: p.seen,
+      });
+    }
+  }
+  for (const c of clusters) c.areaHa = Math.round(c.areaHa);
+
+  return {
+    fetchedAt: Date.now(),
+    radiusKm: FIRE_RADIUS_KM,
+    hotspotCount: points.length,
+    clusters,
+    nearestKm: clusters.length ? clusters[0].distanceKm : null,
+    nearestDirection: clusters.length ? clusters[0].direction : null,
+  };
+}
+
+// ---------- Hazard Watch: Whitemud River gauge (ECCC GeoMet, no key) ----------
+
+// 05LL005 is the nearest active gauge to Neepawa on the Whitemud River
+// (near Keyes, ~26 km downstream). Readings arrive every 5 minutes.
+const RIVER_STATION = "05LL005";
+const RIVER_STATION_NAME = "Whitemud River near Keyes";
+
+async function buildRiver() {
+  // ~26 hours of 5-minute readings, newest first
+  const url =
+    `https://api.weather.gc.ca/collections/hydrometric-realtime/items` +
+    `?STATION_NUMBER=${RIVER_STATION}&sortby=-DATETIME&limit=320&f=json`;
+  const data = await fetchJson(url);
+  const readings = (data.features || [])
+    .map(f => ({
+      t: Date.parse(f.properties?.DATETIME),
+      level: f.properties?.LEVEL,
+      discharge: f.properties?.DISCHARGE ?? null,
+      lat: f.geometry?.coordinates?.[1],
+      lng: f.geometry?.coordinates?.[0],
+    }))
+    .filter(r => Number.isFinite(r.t) && typeof r.level === "number")
+    .sort((a, b) => b.t - a.t);
+  if (readings.length === 0) throw new Error("no river readings returned");
+
+  const latest = readings[0];
+  // Trend: compare against the reading closest to 6 hours before the latest.
+  const target = latest.t - 6 * 3600e3;
+  const ref = readings.reduce((best, r) =>
+    Math.abs(r.t - target) < Math.abs(best.t - target) ? r : best);
+  // Hourly downsample (oldest → newest) — enough for a small sparkline.
+  const series = [];
+  for (let i = readings.length - 1; i >= 0; i--) {
+    if (!series.length || readings[i].t - series[series.length - 1].t >= 3540e3) {
+      series.push({ t: readings[i].t, level: readings[i].level });
+    }
+  }
+  return {
+    fetchedAt: Date.now(),
+    stationId: RIVER_STATION,
+    stationName: RIVER_STATION_NAME,
+    lat: latest.lat ?? null,
+    lng: latest.lng ?? null,
+    observedAt: latest.t,
+    level: latest.level,
+    discharge: latest.discharge,
+    trend6h: ref === latest ? null : +(latest.level - ref.level).toFixed(3),
+    series,
+  };
+}
+
 // ---------- main ----------
 
 async function main() {
@@ -350,28 +552,41 @@ async function main() {
   const failures = [];
   let filesWritten = 0;
 
-  // Weather (independent file)
-  try {
-    await buildWeather();
+  if (!API_KEY) {
+    console.warn("MB511_API_KEY not set — skipping 511 events, conditions, cameras");
+  }
+  const skip = Promise.resolve(null); // fulfilled-with-null = source not attempted
+
+  // All sources are independent — fetch them concurrently so a run
+  // takes as long as the slowest source, not the sum of all of them.
+  const [weatherR, ecR, eventsR, conditionsR, camerasR, aqR, fireR, riverR] = await Promise.allSettled([
+    buildWeather(),
+    buildEcAlerts(),
+    API_KEY ? build511Events() : skip,
+    API_KEY ? buildConditions() : skip,
+    API_KEY ? buildCameras() : skip,
+    buildAirQuality(),
+    buildWildfires(),
+    buildRiver(),
+  ]);
+  const settle = (r, name) => {
+    if (r.status === "fulfilled") return r.value;
+    failures.push(`${name}: ${r.reason?.message ?? r.reason}`);
+    return null;
+  };
+
+  // Weather (independent file, written inside buildWeather)
+  if (weatherR.status === "fulfilled") {
     filesWritten++;
-  } catch (err) {
-    failures.push("weather: " + err.message);
+  } else {
+    failures.push("weather: " + weatherR.reason.message);
     await preserveDeployed("weather.json");
   }
 
-  // Incidents: EC alerts + 511 events, one combined snapshot
-  let ecAlerts = null, roadEvents = null;
-  try { ecAlerts = await buildEcAlerts(); }
-  catch (err) { failures.push("ec-alerts: " + err.message); }
-
-  if (API_KEY) {
-    try { roadEvents = await build511Events(); }
-    catch (err) { failures.push("511-events: " + err.message); }
-  } else {
-    console.warn("MB511_API_KEY not set — skipping 511 events, conditions, cameras");
-  }
-
+  // Incidents: EC alerts + 511 events, one combined snapshot.
   // Only rewrite incidents.json if at least one source succeeded.
+  const ecAlerts = settle(ecR, "ec-alerts");
+  const roadEvents = settle(eventsR, "511-events");
   if (ecAlerts !== null || roadEvents !== null) {
     const incidents = [...(ecAlerts ?? []), ...(roadEvents ?? [])]
       .sort((a, b) => b.createdAt - a.createdAt);
@@ -382,25 +597,37 @@ async function main() {
   }
 
   // Roads: conditions + cameras
-  if (API_KEY) {
-    let conditions = null, cameras = null;
-    try { conditions = await buildConditions(); }
-    catch (err) { failures.push("511-conditions: " + err.message); }
-    try { cameras = await buildCameras(); }
-    catch (err) { failures.push("511-cameras: " + err.message); }
-    if (conditions !== null || cameras !== null) {
-      await writeData("roads.json", {
-        conditions: conditions ?? [],
-        conditionsFetchedAt: conditions !== null ? Date.now() : null,
-        cameras: cameras ?? [],
-        camerasFetchedAt: cameras !== null ? Date.now() : null,
-      });
-      filesWritten++;
-    } else {
-      await preserveDeployed("roads.json");
-    }
+  const conditions = settle(conditionsR, "511-conditions");
+  const cameras = settle(camerasR, "511-cameras");
+  if (conditions !== null || cameras !== null) {
+    await writeData("roads.json", {
+      conditions: conditions ?? [],
+      conditionsFetchedAt: conditions !== null ? Date.now() : null,
+      cameras: cameras ?? [],
+      camerasFetchedAt: cameras !== null ? Date.now() : null,
+    });
+    filesWritten++;
   } else {
     await preserveDeployed("roads.json");
+  }
+
+  // Hazard Watch: air quality + wildfires + river, one combined file.
+  // Sections are independent; a failed section keeps its currently-deployed
+  // data instead of being nulled out.
+  const airQuality = settle(aqR, "air-quality");
+  const wildfires = settle(fireR, "wildfires");
+  const river = settle(riverR, "river");
+  if (airQuality !== null || wildfires !== null || river !== null) {
+    const prev = (airQuality === null || wildfires === null || river === null)
+      ? await deployedJson("hazards.json") : null;
+    await writeData("hazards.json", {
+      airQuality: airQuality ?? prev?.airQuality ?? null,
+      wildfires: wildfires ?? prev?.wildfires ?? null,
+      river: river ?? prev?.river ?? null,
+    });
+    filesWritten++;
+  } else {
+    await preserveDeployed("hazards.json");
   }
 
   if (filesWritten === 0) {

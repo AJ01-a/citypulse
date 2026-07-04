@@ -2,20 +2,25 @@
 
 A **fully automated** status dashboard for **Neepawa, Manitoba**: live weather, Environment Canada severe-weather alerts, highway closures, driving conditions, and highway cameras.
 
-Hosted entirely on **GitHub**: the site is static files on **GitHub Pages**, and a scheduled **GitHub Actions** workflow fetches fresh data every 20 minutes and redeploys. No servers, no database, no hosting bill.
+Hosted entirely on **GitHub**: the site is static files on **GitHub Pages**, and a scheduled **GitHub Actions** workflow fetches fresh data every ~6 minutes and redeploys. Current weather is additionally fetched live in the browser straight from Open-Meteo (keyless, CORS), so it is real-time regardless of the pipeline. No servers, no database, no hosting bill.
 
 ## Architecture
 
 ```
-GitHub Actions (cron */20 min)
+GitHub Actions (cron every 6 min)
   └─ scripts/fetch-data.mjs
        ├─ Open-Meteo ──────────────► data/weather.json
        ├─ Environment Canada XML ──► data/incidents.json  (+ MB511 events)
-       └─ Manitoba 511 API ────────► data/roads.json      (conditions + cameras)
+       ├─ Manitoba 511 API ────────► data/roads.json      (conditions + cameras)
+       └─ Hazard Watch ────────────► data/hazards.json
+            ├─ Open-Meteo air quality  (AQHI / wildfire smoke)
+            ├─ NRCan CWFIS hotspots    (active wildfires ≤200 km)
+            └─ ECCC GeoMet hydrometric (Whitemud River gauge 05LL005)
   └─ deploy everything to GitHub Pages
 
 Browser
-  └─ index.html reads the three JSON files (same-origin, no API calls)
+  └─ index.html reads the three JSON files (same-origin)
+  └─ + live current-conditions fetch direct from Open-Meteo (keyless, CORS)
 ```
 
 The Manitoba 511 API key is used **only inside the workflow**. It never appears in the repo or in the browser.
@@ -50,6 +55,9 @@ The Manitoba 511 API key is used **only inside the workflow**. It never appears 
 | Road closures & events (≤60 km) | [Manitoba 511](https://www.manitoba511.ca) | `MB511_API_KEY` |
 | Highway driving conditions (≤80 km) | Manitoba 511 | `MB511_API_KEY` |
 | Highway cameras (≤120 km, nearest 8) | Manitoba 511 | `MB511_API_KEY` |
+| Air quality / wildfire smoke (AQHI) | Open-Meteo Air Quality | No |
+| Active wildfires (≤200 km, satellite) | [NRCan CWFIS](https://cwfis.cfs.nrcan.gc.ca) hotspot CSV | No |
+| Whitemud River level & flow (gauge 05LL005) | [ECCC GeoMet](https://api.weather.gc.ca) hydrometric-realtime | No |
 
 Features that could not be automated (community incident reports, email subscriptions) were removed.
 
@@ -57,7 +65,7 @@ Features that could not be automated (community incident reports, email subscrip
 
 - **No backend at all.** The published site is read-only static files — there are no endpoints to abuse, no forms, no database, no sessions. "Unusual HTTP requests" have nothing to hit.
 - **DDoS**: GitHub Pages sits behind GitHub's global CDN, which absorbs volumetric attacks. There is no per-site rate limiting to configure (and none needed — a request can only ever fetch a cached file).
-- **Secret handling**: the 511 key lives in an encrypted Actions secret, masked in logs, used ~3 requests per 20 minutes from GitHub's runners only.
+- **Secret handling**: the 511 key lives in an encrypted Actions secret, masked in logs, used ~3 requests per run (every ~6 minutes) from GitHub's runners only.
 - **Browser hardening**: strict Content-Security-Policy via `<meta>` (GitHub Pages can't set HTTP headers), no inline scripts, Subresource Integrity on the Leaflet CDN files, `rel="noopener"` on external links, a JS frame-busting guard, `referrer` policy set.
 - **Workflow hardening**: least-privilege permissions (`contents: read` + Pages deploy), pinned major action versions, 10-minute timeout, concurrency lock.
 
@@ -65,10 +73,22 @@ Known limitations of static hosting: real HTTP security headers (HSTS, X-Frame-O
 
 ## GitHub Actions notes
 
-- Scheduled runs can be delayed a few minutes at busy times — normal.
-- **GitHub disables cron workflows after 60 days without repo activity.** You'll get an email; one click re-enables it. Any commit also resets the clock.
-- Usage: ~72 runs/day × ~30 s. Public repos get unlimited Actions minutes.
-- Each run "fails soft": if one source is down, the other files still update and the previous data stays live.
+- **GitHub's cron scheduler is best-effort**: firings are routinely delayed minutes and often dropped entirely under load (observed: a 20-min cron firing only ~once an hour). The schedule is intentionally dense (every 6 min) so that even heavy dropping keeps real-world updates ~10 minutes apart.
+- **60-day auto-disable is self-healing**: each scheduled run re-enables the workflow via the API (`actions: write` + the `Keep scheduled runs alive` step), which resets GitHub's inactivity timer — no human ever needs to click re-enable.
+- Usage: up to ~240 runs/day × ~30 s. Public repos get unlimited Actions minutes.
+- Each run "fails soft": if one source is down, the other files still update and the previous data stays live. Every upstream request has a 30 s timeout so a hung source can never stall the whole deploy.
+
+### Optional: guaranteed clockwork updates
+
+If GitHub's scheduler drops too many firings for your taste, an external pinger makes updates fire like clockwork (one-time, 10-minute setup):
+
+1. Create a **fine-grained personal access token** (GitHub → Settings → Developer settings) scoped to only this repo with **Actions: Read and write** permission.
+2. On [cron-job.org](https://cron-job.org) (free), create a job that runs every 5–10 minutes:
+   - URL: `https://api.github.com/repos/<you>/citypulse/actions/workflows/deploy.yml/dispatches`
+   - Method: `POST`, body: `{"ref":"main"}`
+   - Headers: `Authorization: Bearer <token>`, `Accept: application/vnd.github+json`
+
+The workflow already accepts `workflow_dispatch`, so no code change is needed.
 
 ## Local development
 
@@ -97,7 +117,8 @@ citypulse/
 ├── data/                      # Machine-written by the workflow (seed files committed)
 │   ├── weather.json
 │   ├── incidents.json
-│   └── roads.json
+│   ├── roads.json
+│   └── hazards.json           # Hazard Watch: air quality + wildfires + river
 ├── scripts/fetch-data.mjs     # All upstream fetching + filtering
 ├── .github/workflows/deploy.yml
 └── package.json               # fast-xml-parser (EC alerts XML)

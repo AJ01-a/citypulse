@@ -122,6 +122,8 @@ h4 { font-size: .75rem; text-transform: uppercase; letter-spacing: .1em; color: 
 /* Status tiles */
 .grid { display: grid; gap: 1rem; }
 .grid-4 { grid-template-columns: repeat(4, 1fr); }
+.grid-3 { grid-template-columns: repeat(3, 1fr); }
+.hazards-section .status-cards { margin-top: 1rem; }
 .status-cards { margin: 1.5rem 0 2.5rem; }
 .status-card {
   background: var(--surface);
@@ -365,6 +367,7 @@ h4 { font-size: .75rem; text-transform: uppercase; letter-spacing: .1em; color: 
 /* Responsive */
 @media (max-width: 1000px) {
   .grid-4 { grid-template-columns: repeat(2, 1fr); }
+  .grid-3 { grid-template-columns: 1fr; }
   .two-col { grid-template-columns: 1fr; gap: 2rem; }
   .weather-now { grid-template-columns: 1fr; gap: 1.25rem; }
   .weather-stats { grid-template-columns: repeat(3, 1fr); }

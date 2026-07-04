@@ -24,6 +24,7 @@ const CONDITION_META = {
 const REPORTS_URL = 'data/incidents.json';
 const WEATHER_URL = 'data/weather.json';
 const ROADS_URL   = 'data/roads.json';
+const HAZARDS_URL = 'data/hazards.json';
 
 // ----- Data loading -----
 // The ?t= cache-buster matters: GitHub Pages' CDN caches files for up to
@@ -46,15 +47,99 @@ async function loadReports() {
   }
 }
 
+// Open-Meteo is keyless and CORS-enabled, so current conditions can come
+// straight from the source on every page view — always real-time, no matter
+// how long ago the Actions pipeline last ran. The baked weather.json stays
+// the source for daily/hourly forecast data and the fallback if this fails.
+const LIVE_WEATHER_URL =
+  'https://api.open-meteo.com/v1/forecast' +
+  `?latitude=${CITY_CONFIG.center[0]}&longitude=${CITY_CONFIG.center[1]}` +
+  '&current=temperature_2m,apparent_temperature,relative_humidity_2m,weather_code,wind_speed_10m,wind_gusts_10m,wind_direction_10m,is_day' +
+  '&timezone=America%2FWinnipeg';
+
 async function loadWeather() {
+  let baked = null;
   try {
     const res = await fetch(fresh(WEATHER_URL), { cache: 'no-store' });
     if (!res.ok) throw new Error('fetch failed: ' + res.status);
-    return await res.json();
+    baked = await res.json();
   } catch (e) {
     console.warn('loadWeather failed:', e);
     return null;
   }
+  try {
+    const res = await fetch(LIVE_WEATHER_URL, { signal: AbortSignal.timeout(5000) });
+    if (res.ok) {
+      const live = await res.json();
+      if (live && live.current) {
+        baked.current = live.current;
+        baked.fetchedAt = Date.now();
+      }
+    }
+  } catch (e) {
+    console.warn('live weather overlay failed, using baked data:', e);
+  }
+  return baked;
+}
+
+// Canadian AQHI from pollutant concentrations (instantaneous variant —
+// mirrors computeAqhi in scripts/fetch-data.mjs; keep the two in sync).
+function computeAqhi(pm25, ozone, no2) {
+  const o3ppb = (ozone ?? 0) / 1.963;
+  const no2ppb = (no2 ?? 0) / 1.88;
+  const raw = (1000 / 10.4) * (
+    (Math.exp(0.000537 * o3ppb) - 1) +
+    (Math.exp(0.000871 * no2ppb) - 1) +
+    (Math.exp(0.000487 * (pm25 ?? 0)) - 1)
+  );
+  return Math.max(1, Math.round(raw));
+}
+
+function aqhiCategory(aqhi) {
+  if (aqhi <= 3) return "Low";
+  if (aqhi <= 6) return "Moderate";
+  if (aqhi <= 10) return "High";
+  return "Very high";
+}
+
+// Like the weather overlay: Open-Meteo's air-quality API is keyless and
+// CORS-enabled, so smoke conditions are live even between pipeline runs.
+const LIVE_AQ_URL =
+  'https://air-quality-api.open-meteo.com/v1/air-quality' +
+  `?latitude=${CITY_CONFIG.center[0]}&longitude=${CITY_CONFIG.center[1]}` +
+  '&current=pm2_5,pm10,ozone,nitrogen_dioxide,us_aqi&timezone=America%2FWinnipeg';
+
+async function loadHazards() {
+  let baked = { airQuality: null, wildfires: null, river: null };
+  try {
+    const res = await fetch(fresh(HAZARDS_URL), { cache: 'no-store' });
+    if (!res.ok) throw new Error('fetch failed: ' + res.status);
+    baked = await res.json();
+  } catch (e) {
+    console.warn('loadHazards failed:', e);
+  }
+  try {
+    const res = await fetch(LIVE_AQ_URL, { signal: AbortSignal.timeout(5000) });
+    if (res.ok) {
+      const live = await res.json();
+      const cur = live && live.current;
+      if (cur && typeof cur.pm2_5 === 'number') {
+        const aqhi = computeAqhi(cur.pm2_5, cur.ozone, cur.nitrogen_dioxide);
+        baked.airQuality = {
+          fetchedAt: Date.now(),
+          observedAt: cur.time ?? null,
+          pm25: cur.pm2_5,
+          pm10: cur.pm10 ?? null,
+          usAqi: cur.us_aqi ?? null,
+          aqhi,
+          category: aqhiCategory(aqhi),
+        };
+      }
+    }
+  } catch (e) {
+    console.warn('live air-quality overlay failed, using baked data:', e);
+  }
+  return baked;
 }
 
 async function loadRoads() {

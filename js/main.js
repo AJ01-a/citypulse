@@ -33,6 +33,7 @@
   const condUpdated  = document.getElementById('conditionsUpdated');
   const camRoot      = document.getElementById('cameraGrid');
   const camSection   = document.getElementById('camerasSection');
+  const hazardRoot   = document.getElementById('hazardCards');
 
   if (cityNameEl) cityNameEl.textContent = CITY_CONFIG.name;
 
@@ -157,7 +158,7 @@
   }
 
   // ----- Highway cameras (Manitoba 511) -----
-  let camerasRendered = false;
+  let camerasKey = null;
   function renderCameras(roads) {
     if (!camRoot || !camSection) return;
     const cams = roads.cameras || [];
@@ -166,14 +167,17 @@
       return;
     }
     camSection.hidden = false;
-    if (camerasRendered) {
+    // Re-render fully when the set of cameras changes (e.g. after a deploy
+    // picked up a new/removed camera); otherwise just refresh the images.
+    const key = cams.map(c => c.id).join(',');
+    if (camerasKey === key) {
       // Just refresh the images with a cache-buster
       camRoot.querySelectorAll('img[data-src]').forEach(img => {
         img.src = img.dataset.src + (img.dataset.src.includes('?') ? '&' : '?') + 't=' + Date.now();
       });
       return;
     }
-    camerasRendered = true;
+    camerasKey = key;
     camRoot.innerHTML = cams.map(cam => {
       const view = cam.views[0];
       const title = [cam.roadway, cam.location].filter(Boolean).join(' — ');
@@ -197,24 +201,120 @@
     });
   }
 
+  // ----- Hazard Watch (air quality, wildfires, river) -----
+  function bump(worst, level) {
+    const rank = { ok: 0, warn: 1, bad: 2 };
+    return rank[level] > rank[worst] ? level : worst;
+  }
+
+  // Overall hazard level: 'ok' | 'warn' | 'bad' — feeds the status banner.
+  function hazardSeverity(h) {
+    let worst = 'ok';
+    const aq = h.airQuality;
+    if (aq) {
+      if (aq.category === 'High' || aq.category === 'Very high') worst = bump(worst, 'bad');
+      else if (aq.category === 'Moderate') worst = bump(worst, 'warn');
+    }
+    const wf = h.wildfires;
+    if (wf && wf.nearestKm != null) {
+      if (wf.nearestKm <= 30) worst = bump(worst, 'bad');
+      else if (wf.nearestKm <= 100) worst = bump(worst, 'warn');
+    }
+    const rv = h.river;
+    if (rv && typeof rv.trend6h === 'number') {
+      if (rv.trend6h >= 0.4) worst = bump(worst, 'bad');
+      else if (rv.trend6h >= 0.15) worst = bump(worst, 'warn');
+    }
+    return worst;
+  }
+
+  function renderHazards(h) {
+    if (!hazardRoot) return;
+    const cards = [];
+
+    const aq = h.airQuality;
+    if (aq) {
+      const cls = aq.category === 'Low' ? 'ok' : aq.category === 'Moderate' ? 'warn' : 'bad';
+      const smoke = aq.pm25 >= 30 ? ' · wildfire smoke likely' : '';
+      cards.push({
+        icon: '💨', label: 'Air quality (AQHI)',
+        value: `${aq.aqhi > 10 ? '10+' : aq.aqhi} — ${aq.category}`,
+        meta: `PM2.5 ${Math.round(aq.pm25)} µg/m³${smoke} · updated ${relativeTime(aq.fetchedAt)}`,
+        cls, badge: aq.category,
+      });
+    } else {
+      cards.push({ icon: '💨', label: 'Air quality (AQHI)', value: '—', meta: 'No data right now', cls: 'ok', badge: 'No data' });
+    }
+
+    const wf = h.wildfires;
+    if (wf) {
+      const none = wf.nearestKm == null;
+      const cls = none ? 'ok' : wf.nearestKm <= 30 ? 'bad' : wf.nearestKm <= 100 ? 'warn' : 'ok';
+      cards.push({
+        icon: '🔥', label: `Wildfires within ${wf.radiusKm} km`,
+        value: none ? 'None detected' : `${wf.nearestKm} km ${wf.nearestDirection}`,
+        meta: none
+          ? `Satellite scan clear · updated ${relativeTime(wf.fetchedAt)}`
+          : `${wf.clusters.length} fire zone${wf.clusters.length === 1 ? '' : 's'} detected by satellite · updated ${relativeTime(wf.fetchedAt)}`,
+        cls, badge: none ? 'Clear' : cls === 'bad' ? 'Very close' : cls === 'warn' ? 'Nearby' : 'Distant',
+      });
+    } else {
+      cards.push({ icon: '🔥', label: 'Wildfires', value: '—', meta: 'No data right now', cls: 'ok', badge: 'No data' });
+    }
+
+    const rv = h.river;
+    if (rv) {
+      const t = typeof rv.trend6h === 'number' ? rv.trend6h : null;
+      const cls = t !== null && t >= 0.4 ? 'bad' : t !== null && t >= 0.15 ? 'warn' : 'ok';
+      const word = t === null ? 'No trend' :
+        t >= 0.15 ? 'Rising fast' : t >= 0.03 ? 'Rising' : t <= -0.03 ? 'Falling' : 'Steady';
+      const arrow = t === null ? '' : t >= 0.03 ? '↑ ' : t <= -0.03 ? '↓ ' : '→ ';
+      const bits = [];
+      if (rv.discharge != null) bits.push(`Flow ${Math.round(rv.discharge)} m³/s`);
+      if (t !== null) bits.push(`${t >= 0 ? '+' : ''}${Math.round(t * 100)} cm over 6 h`);
+      bits.push(`${rv.stationName} gauge · ${relativeTime(rv.observedAt)}`);
+      cards.push({
+        icon: '🌊', label: 'Whitemud River',
+        value: arrow + word,
+        meta: bits.join(' · '),
+        cls, badge: cls === 'bad' ? 'Flood risk' : cls === 'warn' ? 'Watch' : 'Normal',
+      });
+    } else {
+      cards.push({ icon: '🌊', label: 'Whitemud River', value: '—', meta: 'No data right now', cls: 'ok', badge: 'No data' });
+    }
+
+    hazardRoot.innerHTML = cards.map(t => `
+      <div class="status-card">
+        <div class="status-card-head">
+          <span class="label"><span class="icon">${t.icon}</span>${t.label}</span>
+          <span class="badge badge-${t.cls}">${t.badge}</span>
+        </div>
+        <div class="count count-text">${t.value}</div>
+        <div class="meta">${t.meta}</div>
+      </div>
+    `).join('');
+  }
+
   // ----- Main render -----
   async function render() {
-    const [reports, weather, roads] = await Promise.all([loadReports(), loadWeather(), loadRoads()]);
+    const [reports, weather, roads, hazards] = await Promise.all([loadReports(), loadWeather(), loadRoads(), loadHazards()]);
     const summary = summarize(reports);
 
     renderWeather(weather);
     renderAlertBanner(reports);
     renderConditions(roads);
     renderCameras(roads);
+    renderHazards(hazards);
 
     const condLevel = worstConditionLevel(roads.conditions || []);
     const condMeta = CONDITION_META[condLevel] || CONDITION_META.unknown;
 
-    // Overall banner: worst of incidents + driving conditions
+    // Overall banner: worst of incidents + driving conditions + hazards
     banner.classList.remove('warn', 'bad');
     let worst = summary.worst;
     if (condLevel === 'closed' || condLevel === 'poor') worst = 'bad';
     else if (condLevel === 'fair' && worst === 'ok') worst = 'warn';
+    worst = bump(worst, hazardSeverity(hazards));
     if (worst === 'warn') banner.classList.add('warn');
     if (worst === 'bad') banner.classList.add('bad');
     statusText.textContent =
@@ -293,7 +393,7 @@
       }).join('');
     }
 
-    renderMap(filtered, roads.cameras || []);
+    renderMap(filtered, roads.cameras || [], hazards);
   }
 
   // Filters
@@ -317,9 +417,37 @@
     }).addTo(map);
     layerGroup = L.layerGroup().addTo(map);
   }
-  function renderMap(reports, cameras) {
+  function renderMap(reports, cameras, hazards) {
     ensureMap();
     layerGroup.clearLayers();
+
+    // Wildfire zones (satellite hotspot clusters)
+    const clusters = (hazards && hazards.wildfires && hazards.wildfires.clusters) || [];
+    clusters.forEach(c => {
+      if (typeof c.lat !== 'number' || typeof c.lng !== 'number') return;
+      const icon = L.divIcon({
+        className: 'cp-marker',
+        html: `<div style="background:#d03b3b;color:#fff;border-radius:50%;width:30px;height:30px;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,.3);font-size:14px;border:2px solid #fff;">🔥</div>`,
+        iconSize: [30, 30], iconAnchor: [15, 15]
+      });
+      const size = c.areaHa > 0 ? ` · ~${c.areaHa} ha` : '';
+      L.marker([c.lat, c.lng], { icon })
+        .bindPopup(`<strong>🔥 Wildfire zone — ${c.distanceKm} km ${c.direction} of Neepawa</strong><br>${c.count} satellite hotspot${c.count === 1 ? '' : 's'}${size}<br><small>NRCan CWFIS · last detected ${escapeHtml(c.lastSeen || 'recently')} UTC</small>`)
+        .addTo(layerGroup);
+    });
+
+    // River gauge
+    const rv = hazards && hazards.river;
+    if (rv && typeof rv.lat === 'number' && typeof rv.lng === 'number') {
+      const icon = L.divIcon({
+        className: 'cp-marker',
+        html: `<div style="background:#2a78d6;color:#fff;border-radius:50%;width:28px;height:28px;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 6px rgba(0,0,0,.3);font-size:13px;border:2px solid #fff;">🌊</div>`,
+        iconSize: [28, 28], iconAnchor: [14, 14]
+      });
+      L.marker([rv.lat, rv.lng], { icon })
+        .bindPopup(`<strong>🌊 ${escapeHtml(rv.stationName)}</strong><br>Level ${rv.level.toFixed(2)} m${rv.discharge != null ? ` · flow ${Math.round(rv.discharge)} m³/s` : ''}<br><small>Water Survey of Canada · ${relativeTime(rv.observedAt)}</small>`)
+        .addTo(layerGroup);
+    }
     reports.forEach(r => {
       if (typeof r.lat !== 'number' || typeof r.lng !== 'number') return;
       const meta = TYPE_META[r.type] || TYPE_META.weather;
@@ -348,8 +476,10 @@
 
   render();
 
-  // Auto-refresh every 2 minutes (server-side caches keep upstream load tiny)
-  setInterval(render, 120000);
+  // Auto-refresh every minute — data files are tiny static JSON on a CDN,
+  // and the pipeline now redeploys every ~6 minutes, so poll fast enough
+  // that a fresh deploy is picked up within a minute of going live.
+  setInterval(render, 60000);
 
   // Tick the "Updated X ago" label every 30s so data age is always honest
   setInterval(() => {
