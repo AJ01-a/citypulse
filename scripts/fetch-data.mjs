@@ -338,14 +338,43 @@ async function buildConditions() {
   return local.slice(0, 40);
 }
 
+// When a camera feed is down, Manitoba 511 still answers HTTP 200 but serves
+// a small PNG placeholder ("No live camera feed at this time") instead of a
+// live snapshot. Status codes can't tell them apart, so probe the image:
+// live snapshots are full-size JPEGs; the placeholder is a small PNG.
+const CAMERA_PROBE_TIMEOUT_MS = 8_000;
+const CAMERA_PLACEHOLDER_MAX_BYTES = 20_000;
+
+async function isLiveCameraView(url) {
+  // Retry once: a transient probe error must not let an offline placeholder
+  // slip through (we only fall back to "assume live" if both attempts fail).
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const res = await fetch(url, { signal: AbortSignal.timeout(CAMERA_PROBE_TIMEOUT_MS) });
+      const type = (res.headers.get("content-type") || "").toLowerCase();
+      const len = Number(res.headers.get("content-length") || 0);
+      // We only need the headers — release the socket instead of downloading
+      // the image, or unread bodies exhaust undici's pool and later probes hang.
+      await res.body?.cancel().catch(() => {});
+      if (!res.ok) return false;
+      return !(type.includes("png") && len > 0 && len < CAMERA_PLACEHOLDER_MAX_BYTES);
+    } catch {
+      if (attempt === 1) return true; // couldn't verify — don't hide a possibly-live camera
+    }
+  }
+  return true;
+}
+
 async function buildCameras() {
   const cams = await fetch511("cameras");
-  return cams
+  // Nearest candidates first; probe more than we need so offline feeds can be
+  // replaced by the next working camera rather than leaving a dead tile.
+  const candidates = cams
     .filter(c => typeof c.Latitude === "number" && typeof c.Longitude === "number" && c.Latitude !== 0)
     .map(c => ({ cam: c, dist: distanceKm(CENTER.lat, CENTER.lng, c.Latitude, c.Longitude) }))
     .filter(x => x.dist <= CAMERAS_RADIUS_KM)
     .sort((a, b) => a.dist - b.dist)
-    .slice(0, MAX_CAMERAS)
+    .slice(0, MAX_CAMERAS * 3)
     .map(({ cam, dist }) => ({
       id: cam.Id,
       roadway: cam.Roadway || "",
@@ -359,6 +388,9 @@ async function buildCameras() {
         .map(v => ({ id: v.Id, url: v.Url, description: v.Description || "" })),
     }))
     .filter(c => c.views.length > 0);
+
+  const liveFlags = await Promise.all(candidates.map(c => isLiveCameraView(c.views[0].url)));
+  return candidates.filter((_, i) => liveFlags[i]).slice(0, MAX_CAMERAS);
 }
 
 // ---------- Hazard Watch: air quality / wildfire smoke (Open-Meteo, no key) ----------
