@@ -346,8 +346,11 @@ const CAMERA_PROBE_TIMEOUT_MS = 8_000;
 const CAMERA_PLACEHOLDER_MAX_BYTES = 20_000;
 
 async function isLiveCameraView(url) {
-  // Retry once: a transient probe error must not let an offline placeholder
-  // slip through (we only fall back to "assume live" if both attempts fail).
+  // Fail closed: if we can't confirm a live snapshot after a retry, treat the
+  // camera as offline. In practice the flaky feeds are the offline ones (their
+  // placeholder endpoint times out); live JPEGs respond fast and reliably. A
+  // live camera wrongly hidden by a fluke reappears next run — far better than
+  // showing a dead "no live feed" placeholder, which is the bug we're fixing.
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
       const res = await fetch(url, { signal: AbortSignal.timeout(CAMERA_PROBE_TIMEOUT_MS) });
@@ -359,22 +362,23 @@ async function isLiveCameraView(url) {
       if (!res.ok) return false;
       return !(type.includes("png") && len > 0 && len < CAMERA_PLACEHOLDER_MAX_BYTES);
     } catch {
-      if (attempt === 1) return true; // couldn't verify — don't hide a possibly-live camera
+      if (attempt === 1) return false;
     }
   }
-  return true;
+  return false;
 }
+
+const CAMERA_PROBE_BATCH = 6;
 
 async function buildCameras() {
   const cams = await fetch511("cameras");
-  // Nearest candidates first; probe more than we need so offline feeds can be
-  // replaced by the next working camera rather than leaving a dead tile.
+  // Nearest candidates first; we'll probe them until we have MAX_CAMERAS live
+  // feeds, so an offline camera is replaced by the next working one.
   const candidates = cams
     .filter(c => typeof c.Latitude === "number" && typeof c.Longitude === "number" && c.Latitude !== 0)
     .map(c => ({ cam: c, dist: distanceKm(CENTER.lat, CENTER.lng, c.Latitude, c.Longitude) }))
     .filter(x => x.dist <= CAMERAS_RADIUS_KM)
     .sort((a, b) => a.dist - b.dist)
-    .slice(0, MAX_CAMERAS * 3)
     .map(({ cam, dist }) => ({
       id: cam.Id,
       roadway: cam.Roadway || "",
@@ -389,8 +393,18 @@ async function buildCameras() {
     }))
     .filter(c => c.views.length > 0);
 
-  const liveFlags = await Promise.all(candidates.map(c => isLiveCameraView(c.views[0].url)));
-  return candidates.filter((_, i) => liveFlags[i]).slice(0, MAX_CAMERAS);
+  // Probe in small nearest-first batches. Firing all probes at once (20+)
+  // overwhelms 511 past undici's ~6-connection pool: the extra requests time
+  // out and fail open, letting offline placeholders through (as happened to
+  // the Shoal Lake feed). Bounded concurrency keeps the check reliable, and
+  // we stop as soon as MAX_CAMERAS live feeds are found.
+  const live = [];
+  for (let i = 0; i < candidates.length && live.length < MAX_CAMERAS; i += CAMERA_PROBE_BATCH) {
+    const batch = candidates.slice(i, i + CAMERA_PROBE_BATCH);
+    const flags = await Promise.all(batch.map(c => isLiveCameraView(c.views[0].url)));
+    batch.forEach((c, j) => { if (flags[j]) live.push(c); });
+  }
+  return live.slice(0, MAX_CAMERAS);
 }
 
 // ---------- Hazard Watch: air quality / wildfire smoke (Open-Meteo, no key) ----------
