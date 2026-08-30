@@ -10,7 +10,7 @@ const TYPE_META = {
   weather: { icon: "🌩", label: "Weather", color: "#2a78d6" },
 };
 
-// Driving-condition levels from /api/roads (see poll-conditions.mjs)
+// Driving-condition levels from data/roads.json (see scripts/fetch-data.mjs).
 const CONDITION_META = {
   good:    { label: "Good driving",   badge: "Good",     cls: "ok" },
   fair:    { label: "Use caution",    badge: "Caution",  cls: "warn" },
