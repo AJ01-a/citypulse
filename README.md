@@ -77,6 +77,10 @@ Known limitations of static hosting: real HTTP security headers (HSTS, X-Frame-O
 - **60-day auto-disable is self-healing**: each scheduled run re-enables the workflow via the API (`actions: write` + the `Keep scheduled runs alive` step), which resets GitHub's inactivity timer — no human ever needs to click re-enable.
 - Usage: up to ~240 runs/day × ~30 s. Public repos get unlimited Actions minutes.
 - Each run "fails soft": if one source is down, the other files still update and the previous data stays live. Every upstream request has a 30 s timeout so a hung source can never stall the whole deploy.
+- **`cancel-in-progress` must stay `true`.** The `pages-deploy` concurrency group serialises deploys. With `cancel-in-progress: false`, one run that wedges (GitHub occasionally leaves a run parked in the `waiting` state against the `github-pages` environment, with no protection rule to satisfy) holds the group forever: every later run is cancelled while still pending, and the site keeps serving whatever was last deployed. That deadlock froze this site for 24 days in Aug 2026 — ~665 consecutive cancelled runs — and a cancelled run never reaches the keepalive step either, so the 60-day self-healing stops too. Cancelling an older run is harmless here: every run rebuilds all data from scratch.
+- **If the site looks frozen**, check for a stuck run first:
+  `curl -s "https://api.github.com/repos/<you>/citypulse/actions/runs?status=waiting"` — anything listed there is blocking the group and must be cancelled (Actions → the run → *Cancel workflow*).
+- **The page tells on itself**: if the baked data is more than 45 minutes old, the dashboard shows an amber "update pipeline looks stalled" banner. Weather and air quality are fetched live in the browser, so they keep looking current no matter what the pipeline does — the banner is what makes a stalled pipeline visible.
 
 ### Optional: guaranteed clockwork updates
 

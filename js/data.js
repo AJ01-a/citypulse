@@ -51,6 +51,11 @@ async function loadReports() {
 // straight from the source on every page view — always real-time, no matter
 // how long ago the Actions pipeline last ran. The baked weather.json stays
 // the source for daily/hourly forecast data and the fallback if this fails.
+//
+// The overlay records its own timestamp in `currentLiveAt` and must NEVER
+// touch `fetchedAt`: `fetchedAt` is the *pipeline* clock that the rest of the
+// page uses to decide whether alerts/roads/cameras are stale. Overwriting it
+// here made a 24-day-frozen pipeline read "Updated just now" (Aug 2026).
 const LIVE_WEATHER_URL =
   'https://api.open-meteo.com/v1/forecast' +
   `?latitude=${CITY_CONFIG.center[0]}&longitude=${CITY_CONFIG.center[1]}` +
@@ -73,7 +78,7 @@ async function loadWeather() {
       const live = await res.json();
       if (live && live.current) {
         baked.current = live.current;
-        baked.fetchedAt = Date.now();
+        baked.currentLiveAt = Date.now();
       }
     }
   } catch (e) {

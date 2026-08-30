@@ -34,6 +34,8 @@
   const camRoot      = document.getElementById('cameraGrid');
   const camSection   = document.getElementById('camerasSection');
   const hazardRoot   = document.getElementById('hazardCards');
+  const staleWrap    = document.getElementById('staleBannerWrap');
+  const staleBanner  = document.getElementById('staleBanner');
 
   if (cityNameEl) cityNameEl.textContent = CITY_CONFIG.name;
 
@@ -100,7 +102,7 @@
       </div>
       <div class="forecast">${forecast}</div>
       <div class="weather-footer">
-        Weather data &copy; <a href="https://open-meteo.com" target="_blank" rel="noopener">Open-Meteo</a> · Updated ${relativeTime(w.fetchedAt)}
+        Weather data &copy; <a href="https://open-meteo.com" target="_blank" rel="noopener">Open-Meteo</a> · Updated ${relativeTime(w.currentLiveAt || w.fetchedAt)}
       </div>
     `;
   }
@@ -295,6 +297,31 @@
     `).join('');
   }
 
+  // ----- Pipeline staleness -----
+  // Alerts, road conditions and cameras only change when the GitHub Actions
+  // pipeline redeploys. Weather and air quality are overlaid live in the
+  // browser, so the page keeps looking alive even when the pipeline is dead —
+  // which is exactly how a 24-day outage went unnoticed in Aug 2026. The
+  // pipeline normally lands every ~6-10 min; past 45 min something is wrong
+  // and the reader deserves to be told before they trust the road data.
+  const PIPELINE_STALE_MS = 45 * 60 * 1000;
+
+  function renderStaleNotice(pipelineTs) {
+    if (!staleWrap || !staleBanner) return;
+    if (!pipelineTs || Date.now() - pipelineTs < PIPELINE_STALE_MS) {
+      staleWrap.hidden = true;
+      return;
+    }
+    staleWrap.hidden = false;
+    staleBanner.innerHTML =
+      '<span class="stale-ico">\u23f3</span>' +
+      '<div><strong>Alerts, road conditions and cameras were last updated ' + escapeHtml(relativeTime(pipelineTs)) +
+      ' \u2014 the automatic update pipeline looks stalled.</strong>' +
+      '<span class="stale-meta">Weather and air quality below are still live. ' +
+      'Check <a href="https://www.manitoba511.ca" target="_blank" rel="noopener">Manitoba 511</a> and ' +
+      '<a href="https://weather.gc.ca" target="_blank" rel="noopener">Environment Canada</a> directly before travelling.</span></div>';
+  }
+
   // ----- Main render -----
   async function render() {
     const [reports, weather, roads, hazards] = await Promise.all([loadReports(), loadWeather(), loadRoads(), loadHazards()]);
@@ -323,8 +350,11 @@
       worst === 'warn' ? "Use caution on area highways" :
       summary.total === 0 ? "All clear" :
       `${summary.total} minor item${summary.total === 1 ? '' : 's'}`;
+    // weather.fetchedAt is the pipeline clock (every data file is written by
+    // the same run), NOT the browser-side live weather overlay — see data.js.
     dataTimestamp = weather?.fetchedAt || null;
     lastUpdate.textContent = dataTimestamp ? relativeTime(dataTimestamp) : "just now";
+    renderStaleNotice(dataTimestamp);
 
     // Status tiles
     const tiles = [
@@ -483,7 +513,10 @@
 
   // Tick the "Updated X ago" label every 30s so data age is always honest
   setInterval(() => {
-    if (dataTimestamp) lastUpdate.textContent = relativeTime(dataTimestamp);
+    if (dataTimestamp) {
+      lastUpdate.textContent = relativeTime(dataTimestamp);
+      renderStaleNotice(dataTimestamp);
+    }
   }, 30000);
 
   // Refresh when tab regains focus

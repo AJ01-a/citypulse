@@ -11,6 +11,22 @@
   <title>CityPulse — Neepawa Live Status</title>
   <link rel="icon" href="favicon.svg" type="image/svg+xml" />
   <meta name="theme-color" content="#2a78d6" />
+  <link rel="canonical" href="https://aj01-a.github.io/citypulse/" />
+  <!-- Link previews (Facebook, iMessage, Slack, X). og:image must be an
+       absolute URL — relative paths are ignored by every scraper. -->
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="CityPulse" />
+  <meta property="og:url" content="https://aj01-a.github.io/citypulse/" />
+  <meta property="og:title" content="CityPulse — Neepawa Live Status" />
+  <meta property="og:description" content="Live weather, Environment Canada alerts, highway conditions, closures and cameras for Neepawa, Manitoba — updated automatically around the clock." />
+  <meta property="og:image" content="https://aj01-a.github.io/citypulse/citypulse-facebook.png" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta property="og:image:alt" content="CityPulse Neepawa — your town, at a glance." />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="CityPulse — Neepawa Live Status" />
+  <meta name="twitter:description" content="Live weather, Environment Canada alerts, highway conditions, closures and cameras for Neepawa, Manitoba." />
+  <meta name="twitter:image" content="https://aj01-a.github.io/citypulse/citypulse-facebook.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
@@ -34,6 +50,10 @@
       </ul>
     </nav>
   </header>
+
+  <div class="stale-banner-wrap container" id="staleBannerWrap" hidden>
+    <div class="stale-banner" id="staleBanner" role="status"></div>
+  </div>
 
   <div class="alert-banner-wrap container" id="alertBannerWrap" hidden>
     <div class="alert-banner" id="alertBanner" role="alert"></div>

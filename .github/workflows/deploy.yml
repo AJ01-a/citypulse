@@ -18,10 +18,16 @@ permissions:
   id-token: write
   actions: write
 
-# Never run two deploys at once.
+# Never run two deploys at once. cancel-in-progress MUST stay true: with
+# `false`, a single run that wedges (e.g. a run stuck in GitHub's `waiting`
+# state on the github-pages environment) holds the group forever and every
+# later run is cancelled while pending — the site then silently serves stale
+# data until a human notices. That exact deadlock froze the site for 24 days
+# in Aug 2026. Cancelling an older run is always safe here: each run rebuilds
+# every data file from scratch, so the newest run is strictly better.
 concurrency:
   group: pages-deploy
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   build-and-deploy:
@@ -60,7 +66,7 @@ jobs:
           MB511_API_KEY: ${{ secrets.MB511_API_KEY }}
 
       - name: Prune non-site files from artifact
-        run: rm -rf node_modules scripts .github
+        run: rm -rf node_modules scripts .github package.json package-lock.json README.md
 
       - uses: actions/upload-pages-artifact@v5
         with:

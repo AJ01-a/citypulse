@@ -364,6 +364,26 @@ h4 { font-size: .75rem; text-transform: uppercase; letter-spacing: .1em; color: 
   100% { transform: scale(1); opacity: 1; }
 }
 
+/* ----- Stale-pipeline banner -----
+   Amber, not red: the EC alert banner (--bad) means "there is a real hazard".
+   This one means "we can't vouch for how current the road/alert data is",
+   which must stay visually subordinate to an actual warning. */
+.stale-banner-wrap { margin: 1.5rem auto 0; }
+.stale-banner {
+  background: #fff8ec;
+  color: #6b3d05;
+  border: 1px solid #f0c886;
+  border-left: 4px solid var(--warn);
+  padding: .9rem 1.25rem;
+  border-radius: var(--radius);
+  display: flex; align-items: flex-start; gap: .85rem;
+  box-shadow: var(--shadow);
+}
+.stale-banner .stale-ico { font-size: 1.4rem; flex-shrink: 0; line-height: 1.2; }
+.stale-banner strong { display: block; font-size: .95rem; }
+.stale-banner .stale-meta { font-size: .82rem; display: block; margin-top: .2rem; opacity: .95; }
+.stale-banner a { color: #6b3d05; text-decoration: underline; }
+
 /* Responsive */
 @media (max-width: 1000px) {
   .grid-4 { grid-template-columns: repeat(2, 1fr); }
