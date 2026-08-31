@@ -301,10 +301,16 @@
   // Alerts, road conditions and cameras only change when the GitHub Actions
   // pipeline redeploys. Weather and air quality are overlaid live in the
   // browser, so the page keeps looking alive even when the pipeline is dead —
-  // which is exactly how a 24-day outage went unnoticed in Aug 2026. The
-  // pipeline normally lands every ~6-10 min; past 45 min something is wrong
-  // and the reader deserves to be told before they trust the road data.
-  const PIPELINE_STALE_MS = 45 * 60 * 1000;
+  // which is exactly how a 24-day outage went unnoticed in Aug 2026.
+  //
+  // Threshold measured from 98 real deploy gaps (Jul-Aug 2026), NOT from the
+  // nominal 6-minute cron: GitHub drops most scheduled firings, so the real
+  // cadence is median 97 min, p95 211 min, longest normal gap 215 min (the
+  // long ones cluster around 01:00-04:30 UTC, GitHub's most congested window).
+  // 4 h clears every normal gap, so this banner means "something is actually
+  // wrong" rather than "GitHub is being GitHub". The exact age is always shown
+  // in the status line regardless, so nothing is hidden between refreshes.
+  const PIPELINE_STALE_MS = 4 * 60 * 60 * 1000;
 
   function renderStaleNotice(pipelineTs) {
     if (!staleWrap || !staleBanner) return;

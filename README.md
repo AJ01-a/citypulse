@@ -2,7 +2,7 @@
 
 A **fully automated** status dashboard for **Neepawa, Manitoba**: live weather, Environment Canada severe-weather alerts, highway closures, driving conditions, and highway cameras.
 
-Hosted entirely on **GitHub**: the site is static files on **GitHub Pages**, and a scheduled **GitHub Actions** workflow fetches fresh data every ~6 minutes and redeploys. Current weather is additionally fetched live in the browser straight from Open-Meteo (keyless, CORS), so it is real-time regardless of the pipeline. No servers, no database, no hosting bill.
+Hosted entirely on **GitHub**: the site is static files on **GitHub Pages**, and a scheduled **GitHub Actions** workflow fetches fresh data and redeploys (nominally every 6 minutes; ~97 min in practice — see the measured table below). Current weather is additionally fetched live in the browser straight from Open-Meteo (keyless, CORS), so it is real-time regardless of the pipeline. No servers, no database, no hosting bill.
 
 ## Architecture
 
@@ -73,14 +73,26 @@ Known limitations of static hosting: real HTTP security headers (HSTS, X-Frame-O
 
 ## GitHub Actions notes
 
-- **GitHub's cron scheduler is best-effort**: firings are routinely delayed minutes and often dropped entirely under load (observed: a 20-min cron firing only ~once an hour). The schedule is intentionally dense (every 6 min) so that even heavy dropping keeps real-world updates ~10 minutes apart.
+- **GitHub's cron scheduler is best-effort**: firings are routinely delayed and often dropped entirely under load. The schedule is intentionally dense (every 6 min) to compensate, but **the nominal interval is not what you get**. Measured over 98 real deployments (Jul-Aug 2026):
+
+  | | gap between actual deploys |
+  |---|---|
+  | median | 97 min |
+  | p90 | 191 min |
+  | p95 | 211 min |
+  | longest normal gap | 215 min |
+
+  So roughly 95% of scheduled firings are dropped, and the long gaps cluster around 01:00-04:30 UTC — GitHub's most congested window. Anything built on top of this (staleness thresholds, alerting) must be sized against ~3.5 h, not against 6 min.
 - **60-day auto-disable is self-healing**: each scheduled run re-enables the workflow via the API (`actions: write` + the `Keep scheduled runs alive` step), which resets GitHub's inactivity timer — no human ever needs to click re-enable.
 - Usage: up to ~240 runs/day × ~30 s. Public repos get unlimited Actions minutes.
 - Each run "fails soft": if one source is down, the other files still update and the previous data stays live. Every upstream request has a 30 s timeout so a hung source can never stall the whole deploy.
 - **`cancel-in-progress` must stay `true`.** The `pages-deploy` concurrency group serialises deploys. With `cancel-in-progress: false`, one run that wedges (GitHub occasionally leaves a run parked in the `waiting` state against the `github-pages` environment, with no protection rule to satisfy) holds the group forever: every later run is cancelled while still pending, and the site keeps serving whatever was last deployed. That deadlock froze this site for 24 days in Aug 2026 — ~665 consecutive cancelled runs — and a cancelled run never reaches the keepalive step either, so the 60-day self-healing stops too. Cancelling an older run is harmless here: every run rebuilds all data from scratch.
 - **If the site looks frozen**, check for a stuck run first:
   `curl -s "https://api.github.com/repos/<you>/citypulse/actions/runs?status=waiting"` — anything listed there is blocking the group and must be cancelled (Actions → the run → *Cancel workflow*).
-- **The page tells on itself**: if the baked data is more than 45 minutes old, the dashboard shows an amber "update pipeline looks stalled" banner. Weather and air quality are fetched live in the browser, so they keep looking current no matter what the pipeline does — the banner is what makes a stalled pipeline visible.
+- **The page tells on itself**: if the baked data is more than 4 hours old, the dashboard shows an amber "update pipeline looks stalled" banner. Weather and air quality are fetched live in the browser, so they keep looking current no matter what the pipeline does — the banner is what makes a stalled pipeline visible. 4 h is chosen from the measured table above: it clears every normal gap, so the banner means a real stall rather than routine cron jitter. The exact data age is always shown in the status line regardless.
+- **The watchdog emails you** (`.github/workflows/watchdog.yml`): a second workflow on its own 30-minute schedule and its own concurrency group, with no Pages environment, so nothing that can jam the deploy pipeline can jam it. It fails red — and a red run is what GitHub actually notifies you about — if the live site's data is over 4 h old, if the deploy workflow has been disabled, or if any run has been stuck in `waiting` for over an hour. It also re-enables both workflows on every run, which covers the 60-day timer even when the deploy workflow can't run its own keepalive.
+
+  **Cancelled runs send no notifications.** That is why the Aug 2026 freeze went 24 days in silence: 665 runs were cancelled, not failed, so nothing ever alerted. The watchdog exists specifically to convert that silence into a red run.
 
 ### Optional: guaranteed clockwork updates
 

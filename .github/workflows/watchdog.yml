@@ -1,0 +1,175 @@
+name: Staleness watchdog
+
+# Independent alarm for the deploy pipeline, deliberately sharing nothing with
+# it — different concurrency group, no dependency on pages-deploy, no Pages
+# environment (so no deployment protection rule can ever park it in `waiting`).
+#
+# Why this exists: in Aug 2026 a wedged run held the pages-deploy concurrency
+# group and ~665 consecutive scheduled runs were CANCELLED while pending. The
+# site served 24-day-old road and alert data and GitHub sent zero notifications
+# the entire time, because notifications fire on FAILED runs, not cancelled
+# ones. This workflow's whole job is to go red — a red run is what actually
+# reaches your inbox.
+
+on:
+  schedule:
+    # Every 30 min on odd minutes. GitHub drops most scheduled firings, so this
+    # is dense on purpose: even at a ~10% hit rate it still checks a few times
+    # a day, which is plenty against a 4-hour staleness threshold.
+    - cron: "7,37 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: write # re-enabling workflows (60-day inactivity timer)
+
+# Its own group, and cancel-in-progress: true so the watchdog can never wedge
+# itself the way the deploy workflow did.
+concurrency:
+  group: staleness-watchdog
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      # Resets the 60-day inactivity timer for BOTH workflows. The deploy
+      # workflow's own keepalive step can't save it — a run that is cancelled
+      # while pending never executes a single step, which is exactly what
+      # happened for 24 days. This one runs outside that failure mode.
+      - name: Keep both workflows off the 60-day disable clock
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          for wf in deploy.yml watchdog.yml; do
+            curl -sS -X PUT \
+              -H "Authorization: Bearer $GH_TOKEN" \
+              -H "Accept: application/vnd.github+json" \
+              "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/workflows/$wf/enable" \
+              || echo "could not re-enable $wf"
+          done
+
+      - name: Check live data freshness and pipeline health
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python3 <<'PY'
+          import json, os, sys, time, urllib.request, urllib.error
+
+          REPO = os.environ["GITHUB_REPOSITORY"]
+          owner, name = REPO.split("/")
+          SITE = f"https://{owner.lower()}.github.io/{name}"
+          API = f"https://api.github.com/repos/{REPO}"
+          TOKEN = os.environ["GH_TOKEN"]
+
+          # Measured from 98 real deploy gaps (Jul-Aug 2026): median 97 min,
+          # p95 211 min, longest normal gap 215 min. 4 h clears every normal
+          # gap, so a red run here is a real stall, not GitHub cron jitter.
+          MAX_AGE_MIN = 240
+
+          problems, notes = [], []
+
+          def get(url, auth=False):
+              req = urllib.request.Request(url)
+              if auth:
+                  req.add_header("Authorization", f"Bearer {TOKEN}")
+                  req.add_header("Accept", "application/vnd.github+json")
+              with urllib.request.urlopen(req, timeout=30) as r:
+                  return json.load(r)
+
+          # --- 1. Is the deployed data actually fresh? ---------------------
+          # Take the NEWEST timestamp across all files: that is "when the
+          # pipeline last managed to publish something fresh". Individual
+          # files legitimately go stale on their own (a single upstream can be
+          # down, and conditionsFetchedAt is null outside winter), so judging
+          # any one file alone would produce false alarms.
+          FILES = {
+              "weather.json":   ["fetchedAt"],
+              "incidents.json": ["fetchedAt"],
+              "roads.json":     ["camerasFetchedAt", "conditionsFetchedAt"],
+              "hazards.json":   ["airQuality.fetchedAt", "wildfires.fetchedAt", "river.fetchedAt"],
+          }
+
+          def dig(obj, path):
+              for part in path.split("."):
+                  if not isinstance(obj, dict):
+                      return None
+                  obj = obj.get(part)
+              return obj
+
+          newest = None
+          for fname, paths in FILES.items():
+              try:
+                  data = get(f"{SITE}/data/{fname}?t={int(time.time())}")
+              except Exception as e:
+                  problems.append(f"cannot fetch {SITE}/data/{fname}: {e}")
+                  continue
+              stamps = [v for v in (dig(data, p) for p in paths) if isinstance(v, (int, float))]
+              if not stamps:
+                  notes.append(f"{fname}: no usable timestamp (all sources null)")
+                  continue
+              best = max(stamps)
+              age = (time.time() * 1000 - best) / 60000
+              notes.append(f"{fname}: {age:.0f} min old")
+              newest = best if newest is None else max(newest, best)
+
+          if newest is None:
+              problems.append("no data file on the live site carries a usable timestamp")
+          else:
+              age_min = (time.time() * 1000 - newest) / 60000
+              if age_min > MAX_AGE_MIN:
+                  problems.append(
+                      f"live site data is {age_min/60:.1f} h old "
+                      f"(threshold {MAX_AGE_MIN/60:.0f} h) — the deploy pipeline is not publishing")
+
+          # --- 2. Has the deploy workflow been disabled? -------------------
+          # GitHub auto-disables scheduled workflows after 60 days of repo
+          # inactivity. Nothing self-heals from this if it lands.
+          try:
+              wfs = get(f"{API}/actions/workflows", auth=True)
+              for wf in wfs.get("workflows", []):
+                  if wf["path"].endswith("deploy.yml") and wf["state"] != "active":
+                      problems.append(f"deploy workflow is '{wf['state']}', not active")
+          except Exception as e:
+              notes.append(f"could not read workflow states: {e}")
+
+          # --- 3. Any run wedged in `waiting`? ----------------------------
+          # This is the exact Aug 2026 signature: a run parked against the
+          # github-pages environment, holding the pages-deploy concurrency
+          # group. cancel-in-progress: true should now evict it, so anything
+          # lingering here means that safety net is not doing its job.
+          try:
+              waiting = get(f"{API}/actions/runs?status=waiting&per_page=10", auth=True)
+              for r in waiting.get("workflow_runs", []):
+                  age_h = (time.time() - time.mktime(time.strptime(
+                      r["created_at"], "%Y-%m-%dT%H:%M:%SZ"))) / 3600
+                  if age_h > 1:
+                      problems.append(
+                          f"run #{r['run_number']} stuck in 'waiting' for {age_h:.1f} h "
+                          f"— it is blocking the deploy queue: {r['html_url']}")
+          except Exception as e:
+              notes.append(f"could not check for waiting runs: {e}")
+
+          # --- report ------------------------------------------------------
+          print("Pipeline health check for " + SITE)
+          for n in notes:
+              print("  - " + n)
+
+          if problems:
+              print("\n::error::CityPulse pipeline is unhealthy")
+              for p in problems:
+                  print("  ✗ " + p)
+              print(
+                  "\nWhat to do:\n"
+                  "  1. Check for a wedged run:\n"
+                  f"     {API.replace('api.github.com/repos', 'github.com')}/actions?query=is%3Awaiting\n"
+                  "     Cancel anything parked there — it blocks the pages-deploy group.\n"
+                  "  2. If the deploy workflow is disabled, re-enable it in the Actions tab.\n"
+                  "  3. Re-run the deploy workflow manually (Actions -> Fetch data & deploy to Pages\n"
+                  "     -> Run workflow) and confirm the live data timestamps move.")
+              sys.exit(1)
+
+          print("\nAll healthy.")
+          PY

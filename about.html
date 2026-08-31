@@ -55,14 +55,14 @@
     <div class="prose">
       <h2>What updates automatically</h2>
       <ul>
-        <li><strong>Current weather &amp; 4-day forecast</strong> — <a href="https://open-meteo.com" target="_blank" rel="noopener">Open-Meteo</a>, for Neepawa's exact coordinates. Current conditions are fetched live while the page is open; the forecast refreshes every few minutes.</li>
-        <li><strong>Severe weather alerts</strong> — Environment Canada (Brandon forecast region, the closest coverage to Neepawa). Checked every few minutes; official alerts appear as a red banner.</li>
-        <li><strong>Road closures &amp; traffic events</strong> — <a href="https://www.manitoba511.ca" target="_blank" rel="noopener">Manitoba 511</a>, filtered to within 60&nbsp;km of Neepawa. Checked every few minutes.</li>
-        <li><strong>Highway driving conditions</strong> — Manitoba 511 winter road condition reports for highways around Neepawa (PTH&nbsp;16, PTH&nbsp;5, Hwy&nbsp;1 and area). Checked every few minutes; mainly published in winter.</li>
+        <li><strong>Current weather &amp; 4-day forecast</strong> — <a href="https://open-meteo.com" target="_blank" rel="noopener">Open-Meteo</a>, for Neepawa's exact coordinates. Current conditions are fetched live while the page is open; the forecast refreshes roughly every 1&ndash;2 hours.</li>
+        <li><strong>Severe weather alerts</strong> — Environment Canada (Brandon forecast region, the closest coverage to Neepawa). Rechecked roughly every 1&ndash;2 hours; official alerts appear as a red banner.</li>
+        <li><strong>Road closures &amp; traffic events</strong> — <a href="https://www.manitoba511.ca" target="_blank" rel="noopener">Manitoba 511</a>, filtered to within 60&nbsp;km of Neepawa. Rechecked roughly every 1&ndash;2 hours.</li>
+        <li><strong>Highway driving conditions</strong> — Manitoba 511 winter road condition reports for highways around Neepawa (PTH&nbsp;16, PTH&nbsp;5, Hwy&nbsp;1 and area). Rechecked roughly every 1&ndash;2 hours; mainly published in winter.</li>
         <li><strong>Highway cameras</strong> — the nearest Manitoba 511 cameras, with images that refresh while you have the page open.</li>
         <li><strong>Air quality &amp; wildfire smoke</strong> — <a href="https://open-meteo.com" target="_blank" rel="noopener">Open-Meteo</a> air-quality model for Neepawa's coordinates, shown as a Canadian-style AQHI value. Fetched live while the page is open.</li>
         <li><strong>Active wildfires</strong> — satellite fire detections from <a href="https://cwfis.cfs.nrcan.gc.ca" target="_blank" rel="noopener">Natural Resources Canada (CWFIS)</a>, clustered into fire zones within 200&nbsp;km and plotted on the map.</li>
-        <li><strong>Whitemud River level</strong> — the Water Survey of Canada gauge nearest Neepawa (Whitemud River near Keyes, station 05LL005), with a 6-hour rise/fall trend as an early flood signal. New readings every few minutes.</li>
+        <li><strong>Whitemud River level</strong> — the Water Survey of Canada gauge nearest Neepawa (Whitemud River near Keyes, station 05LL005), with a 6-hour rise/fall trend as an early flood signal. Rechecked roughly every 1&ndash;2 hours.</li>
       </ul>
 
       <h2>Data caveats</h2>
@@ -90,7 +90,7 @@
       </ul>
 
       <h2>How it's built</h2>
-      <p>Static HTML/CSS/JS hosted on GitHub Pages. A scheduled GitHub Actions workflow polls the public feeds every few minutes and republishes the site with fresh data, and current weather is additionally fetched live in your browser straight from Open-Meteo. There is no server and no database — which also means there is nothing to hack, nothing to overload, and nothing that costs money to run. The Manitoba 511 API key lives in an encrypted GitHub secret and never reaches the browser.</p>
+      <p>Static HTML/CSS/JS hosted on GitHub Pages. A scheduled GitHub Actions workflow polls the public feeds and republishes the site with fresh data (typically every 1&ndash;2 hours; GitHub drops most scheduled firings), and current weather is additionally fetched live in your browser straight from Open-Meteo. There is no server and no database — which also means there is nothing to hack, nothing to overload, and nothing that costs money to run. The Manitoba 511 API key lives in an encrypted GitHub secret and never reaches the browser.</p>
     </div>
   </section>
 
