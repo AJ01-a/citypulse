@@ -65,10 +65,18 @@ Features that could not be automated (community incident reports, email subscrip
 
 | Page | What it does | Data |
 |---|---|---|
-| `index.html` | Dashboard: overall status with reasons, live weather + next 12 h + 3 days, Hazard Watch, travel note, incidents, map, conditions, cameras, season teaser, saved shortcuts | `data/*.json` + live Open-Meteo |
-| `prepare.html` | Seasonal checklists (current season first) and home/car emergency kits; ticks saved per browser; printable | `js/content.js` |
-| `resources.html` | Searchable directory of official links, star-to-save shortcuts, FAQ | `js/content.js` |
-| `about.html` | How it works, freshness, privacy, caveats | static |
+| `index.html` | Dashboard: overall status with reasons, live weather + next 12 h + 3 days, roads & travel (travel note, incidents, map, conditions), Hazard Watch, cameras, local links | `data/*.json` + live Open-Meteo |
+| `resources.html` | Searchable directory of official links, FAQ | `js/content.js` |
+| `about.html` | How it works, freshness, using the dashboard, privacy, caveats | static |
+
+On every page: the **Appearance** menu (Light by default, Dark, Match device; `js/theme.js`) and **AJ**, the navigation assistant (`js/aj.js`).
+
+### Dashboard behaviour worth knowing
+
+- **Order adapts.** Roads come before Hazard Watch, unless a hazard is *severe* (AQHI high, fire ≤30 km, river +0.4 m/6 h) and nothing on the roads is — then Hazard Watch moves up (`orderSections` in `js/main.js`).
+- **Incidents** show worst-first, three at a time; "Show all N" reveals the rest.
+- **The map is locked by default.** Leaflet's drag/zoom/keyboard handlers stay disabled (which also drops Leaflet's `touch-action: none`, so phones scroll the page) until the visitor presses "Enable map interaction". "Lock map" or Esc turns them off again. Marker popups work in both states.
+- **AJ** is local intent matching only: no API, no key, nothing sent anywhere. It answers solely from `window.citypulseSnapshot`, a frozen copy of what `render()` loaded, and says "I can't see …" / "no data" / "older than normal" instead of guessing. Off the dashboard it only offers to take you there. Adding an intent = a keyword row in `INTENTS` plus an entry in `ANSWERS`.
 
 `js/content.js` is hand-maintained. Safety guidance there is quoted or closely paraphrased from the official page each list cites, and CityPulse never publishes schedules, events or announcements of its own — it links to whoever publishes them.
 
@@ -87,8 +95,8 @@ Features that could not be automated (community incident reports, email subscrip
 - **Browser hardening**: strict Content-Security-Policy via `<meta>` (GitHub Pages can't set HTTP headers), no inline scripts, Subresource Integrity on the Leaflet CDN files, `rel="noopener"` on external links, a JS frame-busting guard, `referrer` policy set.
 - **Workflow hardening**: least-privilege permissions (`contents: read` + Pages deploy), pinned major action versions, 10-minute timeout, concurrency lock.
 
-- **Untrusted data handling**: every value from a data file or API is escaped before it reaches `innerHTML`; the Prepare/Resources pages build DOM with `textContent` only; camera image URLs must be `https://www.manitoba511.ca`; incident severities are whitelisted. No `eval`/`new Function` (the CSP forbids it).
-- **Privacy**: no analytics, ads or trackers. Theme, checklist ticks and saved shortcuts live in the visitor's `localStorage` only.
+- **Untrusted data handling**: every value from a data file or API is escaped before it reaches `innerHTML`; the Resources page and AJ build DOM with `textContent` only; camera image URLs must be `https://www.manitoba511.ca`; incident severities are whitelisted. No `eval`/`new Function` (the CSP forbids it).
+- **Privacy**: no analytics, ads or trackers. Only the appearance choice is stored, in the visitor's `localStorage`. AJ runs in the browser and sends nothing anywhere.
 
 Known limitations of static hosting: real HTTP security headers (HSTS, X-Frame-Options) can't be customized on GitHub Pages, and `frame-ancestors` is ignored in meta CSP — the JS frame guard is the fallback. If you ever need those, put Cloudflare (free) in front of the Pages site.
 
@@ -148,7 +156,7 @@ cd tests && npm install && node run.mjs          # all checks
 node run.mjs stale                                # only scenarios whose name contains "stale"
 ```
 
-It covers fresh/stale/missing/malformed data, live-API failure, offline cameras, failed Hazard Watch, a severe EC alert, empty incidents, dark mode, the theme toggle, mobile nav and horizontal overflow at 390 px, internal links and anchors on every page, checklist persistence, search, shortcuts, the skip link and reduced motion. Screenshots land in `tests/output/` (git-ignored). Chromium comes from `CHROME_PATH` or `~/.cache/ms-playwright` (`npx playwright install chromium`). `tests/` and `docs/` are pruned from the Pages artifact.
+It covers fresh/stale/missing/malformed data, live-API failure, offline cameras, failed Hazard Watch, a severe EC alert, a severe hazard reordering the page, empty and collapsed incident lists, light-by-default theming (including a dark-mode OS), saved/“match device” themes and the appearance menu, the map lock (page scrolls past the locked map; wheel zooms only once unlocked; Esc re-locks), AJ answers checked against the loaded data (and against missing data), mobile nav and horizontal overflow at 390 px, internal links and anchors on every page, the absence of removed features (911 button, checklists), search, the skip link and reduced motion. Screenshots land in `tests/output/` (git-ignored). Chromium comes from `CHROME_PATH` or `~/.cache/ms-playwright` (`npx playwright install chromium`). `tests/` and `docs/` are pruned from the Pages artifact.
 
 To test the 511 sources locally (PowerShell):
 
@@ -161,14 +169,14 @@ node scripts/fetch-data.mjs
 
 ```
 citypulse/
-├── index.html / prepare.html / resources.html / about.html
+├── index.html / resources.html / about.html
 ├── css/style.css              # One design system, light + dark tokens
 ├── js/
-│   ├── theme.js               # Light/dark toggle (loaded in <head>)
+│   ├── theme.js               # Appearance menu: light (default) / dark / match device; loaded in <head>
 │   ├── data.js                # CITY_CONFIG, WMO mapping, JSON loaders, live overlays
-│   ├── content.js             # Resources, seasonal checklists, kits, FAQ (hand-maintained)
+│   ├── content.js             # Resource directory, guidance sources, FAQ (hand-maintained)
 │   ├── main.js                # Nav + dashboard render
-│   ├── prepare.js             # Prepare page
+│   ├── aj.js                  # AJ navigation assistant (local, data-grounded)
 │   └── resources.js           # Resources page
 ├── data/                      # Machine-written by the workflow (seed files committed)
 │   ├── weather.json

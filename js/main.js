@@ -48,8 +48,10 @@
   const staleBanner  = document.getElementById('staleBanner');
   const prepTips     = document.getElementById('prepTips');
   const travelNote   = document.getElementById('travelNote');
-  const seasonTeaser = document.getElementById('seasonTeaser');
-  const shortcutsEl  = document.getElementById('shortcuts');
+  const incidentMore = document.getElementById('incidentMore');
+  const mapToggle    = document.getElementById('mapToggle');
+  const travelSec    = document.getElementById('travel');
+  const hazardsSec   = document.getElementById('hazards');
 
   if (cityNameEl) cityNameEl.textContent = CITY_CONFIG.name;
 
@@ -364,25 +366,25 @@
     } else {
       const items = reports.items;
       const ec = items.filter(r => r.type === 'weather');
-      if (ec.some(r => r.severity === 'major')) reasons.push({ level: 'bad', text: 'Weather warning in effect' });
-      else if (ec.some(r => r.severity === 'moderate')) reasons.push({ level: 'warn', text: 'Weather watch in effect' });
-      else if (ec.length) reasons.push({ level: 'info', text: plural(ec.length, 'weather statement') });
+      if (ec.some(r => r.severity === 'major')) reasons.push({ level: 'bad', group: 'weather', text: 'Weather warning in effect' });
+      else if (ec.some(r => r.severity === 'moderate')) reasons.push({ level: 'warn', group: 'weather', text: 'Weather watch in effect' });
+      else if (ec.length) reasons.push({ level: 'info', group: 'weather', text: plural(ec.length, 'weather statement') });
       const road = items.filter(r => r.type === 'road');
       const major = road.filter(r => r.severity === 'major').length;
       const moderate = road.filter(r => r.severity === 'moderate').length;
       const minor = road.length - major - moderate;
-      if (major) reasons.push({ level: 'bad', text: plural(major, 'major road event') });
-      if (moderate) reasons.push({ level: 'warn', text: plural(moderate, 'road event') + ' to watch' });
-      if (minor) reasons.push({ level: 'info', text: plural(minor, 'minor road notice') });
+      if (major) reasons.push({ level: 'bad', group: 'road', text: plural(major, 'major road event') });
+      if (moderate) reasons.push({ level: 'warn', group: 'road', text: plural(moderate, 'road event') + ' to watch' });
+      if (minor) reasons.push({ level: 'info', group: 'road', text: plural(minor, 'minor road notice') });
     }
 
     if (!roads) {
       unavailable.push('road conditions');
     } else {
       const lvl = worstConditionLevel(roads.conditions || []);
-      if (lvl === 'closed') reasons.push({ level: 'bad', text: 'Highway closed or travel not recommended' });
-      else if (lvl === 'poor') reasons.push({ level: 'bad', text: 'Poor driving conditions' });
-      else if (lvl === 'fair') reasons.push({ level: 'warn', text: 'Use caution on area highways' });
+      if (lvl === 'closed') reasons.push({ level: 'bad', group: 'road', text: 'Highway closed or travel not recommended' });
+      else if (lvl === 'poor') reasons.push({ level: 'bad', group: 'road', text: 'Poor driving conditions' });
+      else if (lvl === 'fair') reasons.push({ level: 'warn', group: 'road', text: 'Use caution on area highways' });
     }
 
     const aq = hazards.airQuality, wf = hazards.wildfires, rv = hazards.river;
@@ -390,15 +392,15 @@
       unavailable.push('Hazard Watch');
     } else {
       if (!aq) unavailable.push('air quality');
-      else if (aq.category === 'High' || aq.category === 'Very high') reasons.push({ level: 'bad', text: `Air quality ${aq.category.toLowerCase()} (AQHI ${aq.aqhi > 10 ? '10+' : aq.aqhi})` });
-      else if (aq.category === 'Moderate') reasons.push({ level: 'warn', text: `Air quality moderate (AQHI ${aq.aqhi})` });
+      else if (aq.category === 'High' || aq.category === 'Very high') reasons.push({ level: 'bad', group: 'hazard', text: `Air quality ${aq.category.toLowerCase()} (AQHI ${aq.aqhi > 10 ? '10+' : aq.aqhi})` });
+      else if (aq.category === 'Moderate') reasons.push({ level: 'warn', group: 'hazard', text: `Air quality moderate (AQHI ${aq.aqhi})` });
       if (!wf) unavailable.push('wildfires');
       else if (wf.nearestKm != null && wf.nearestKm <= 100) {
-        reasons.push({ level: wf.nearestKm <= 30 ? 'bad' : 'warn', text: `Wildfire ${wf.nearestKm} km ${wf.nearestDirection}` });
+        reasons.push({ level: wf.nearestKm <= 30 ? 'bad' : 'warn', group: 'hazard', text: `Wildfire ${wf.nearestKm} km ${wf.nearestDirection}` });
       }
       if (!rv) unavailable.push('river');
       else if (typeof rv.trend6h === 'number' && rv.trend6h >= 0.15) {
-        reasons.push({ level: rv.trend6h >= 0.4 ? 'bad' : 'warn', text: rv.trend6h >= 0.4 ? 'Whitemud River rising fast' : 'Whitemud River rising' });
+        reasons.push({ level: rv.trend6h >= 0.4 ? 'bad' : 'warn', group: 'hazard', text: rv.trend6h >= 0.4 ? 'Whitemud River rising fast' : 'Whitemud River rising' });
       }
     }
 
@@ -427,7 +429,7 @@
     unknown: { sym: '?', word: 'Unconfirmed' },
   };
 
-  // ----- Guidance raised by current data (Weather/Hazards → Prepare) -----
+  // ----- Guidance raised by current data (Weather/Hazards → official advice) -----
   // Each tip states the data that triggered it and links to official advice.
   // Tips are suggestions, never claims that something is safe or unsafe.
   function contextualTips(weather, hazards, reportData) {
@@ -512,38 +514,32 @@
       : `Nothing flagged near Neepawa in the available data. Conditions change quickly — check <a href="${MB511_URL}" target="_blank" rel="noopener">Manitoba 511</a> before longer trips.`;
   }
 
-  // ----- Season teaser + shortcuts (static content, rendered once) -----
-  function renderSeason() {
-    if (!seasonTeaser || typeof SEASONS === 'undefined') return;
-    const s = currentSeason();
-    const g = s.groups[0];
-    const items = g.items.slice(0, 4).map(it => typeof it === 'string' ? escapeHtml(it) : `<a href="${it.url}" target="_blank" rel="noopener">${escapeHtml(it.text)}</a>`);
-    seasonTeaser.innerHTML = `
-      <div>
-        <p class="season-name"><span class="season-ico" aria-hidden="true">${s.icon}</span>${escapeHtml(s.name)}: ${escapeHtml(s.headline)}</p>
-        <p>Watch for: ${s.watch.map(escapeHtml).join(' · ')}</p>
-        <p><a href="prepare.html#${s.id}">Open the full ${escapeHtml(s.name.toLowerCase())} checklist →</a></p>
-      </div>
-      <div>
-        <ul>${items.map(i => `<li><span>${i}</span></li>`).join('')}</ul>
-        ${g.source ? `<a class="src" href="${g.source.url}" target="_blank" rel="noopener">Source: ${escapeHtml(g.source.label)} ↗</a>` : ''}
-      </div>`;
+  // ----- Section order -----
+  // Roads come before Hazard Watch, unless a hazard is severe and nothing on
+  // the roads is: then Hazard Watch moves up so it isn't below the fold.
+  function orderSections(status) {
+    if (!travelSec || !hazardsSec) return;
+    const severe = g => status.reasons.some(r => r.level === 'bad' && r.group === g);
+    const hazardsFirst = severe('hazard') && !severe('road');
+    const isFirst = hazardsSec.compareDocumentPosition(travelSec) & Node.DOCUMENT_POSITION_FOLLOWING;
+    if (hazardsFirst && !isFirst) travelSec.before(hazardsSec);
+    else if (!hazardsFirst && isFirst) travelSec.after(hazardsSec);
   }
 
-  function renderShortcuts() {
-    if (!shortcutsEl || typeof RESOURCES === 'undefined') return;
-    const all = RESOURCES.flatMap(c => c.items);
-    let saved = [];
-    try { saved = JSON.parse(localStorage.getItem('citypulse-shortcuts') || '[]'); } catch { saved = []; }
-    const mine = (Array.isArray(saved) ? saved : []).map(id => all.find(r => r.id === id)).filter(Boolean);
-    const picks = mine.length ? mine
-      : ['ec-neepawa', 'neepawa-connect', 'mb511', 'town-notices', 'hydro-outages', 'snow-clearing'].map(id => all.find(r => r.id === id)).filter(Boolean);
-    const ext = url => url.startsWith('http');
-    shortcutsEl.innerHTML = picks.map(r => `
-      <a class="res-link" href="${r.url}"${ext(r.url) ? ' target="_blank" rel="noopener"' : ''}>
-        <strong>${escapeHtml(r.title)}</strong><span>${escapeHtml(r.org)}</span>
-      </a>`).join('') +
-      `<p class="shortcuts-note">${mine.length ? 'Your saved shortcuts.' : 'Popular links.'} Pin your own with ☆ in the <a href="resources.html">resource directory</a> — saved only in this browser.</p>`;
+  // ----- Incidents: worst first, the rest one click away -----
+  const INCIDENTS_SHOWN = 3;
+  let incidentsExpanded = false;
+  const SEV_RANK = { major: 0, moderate: 1, minor: 2 };
+  const bySeverity = (a, b) => (SEV_RANK[a.severity] ?? 2) - (SEV_RANK[b.severity] ?? 2) || b.createdAt - a.createdAt;
+
+  function syncIncidentMore(total) {
+    if (!incidentMore) return;
+    const extra = total - INCIDENTS_SHOWN;
+    incidentMore.hidden = extra <= 0;
+    if (extra <= 0) return;
+    [...listRoot.children].forEach((li, i) => { li.hidden = !incidentsExpanded && i >= INCIDENTS_SHOWN; });
+    incidentMore.setAttribute('aria-expanded', String(incidentsExpanded));
+    incidentMore.textContent = incidentsExpanded ? 'Show fewer' : `Show all ${total} incidents (${extra} more)`;
   }
 
   // ----- Pipeline staleness -----
@@ -643,6 +639,7 @@
     // readers re-announce it on every one-minute refresh.
     const sentence = statusSentence(status);
     if (statusText.textContent !== sentence) statusText.textContent = sentence;
+    orderSections(status);
 
     // The pipeline clock: newest timestamp any data file carries. Never the
     // browser-side live overlays (currentLiveAt / live air quality).
@@ -693,7 +690,7 @@
     `).join('');
 
     // Incidents list (filtered)
-    const filtered = activeFilter === 'all' ? reports : reports.filter(r => r.type === activeFilter);
+    const filtered = (activeFilter === 'all' ? reports : reports.filter(r => r.type === activeFilter)).slice().sort(bySeverity);
     if (!reportData) {
       listRoot.innerHTML = `
         <li class="empty-state error">
@@ -730,9 +727,22 @@
           </li>`;
       }).join('');
     }
+    syncIncidentMore(reportData ? filtered.length : 0);
 
     renderMap(filtered, cams, hazards);
+
+    // Read-only snapshot for the AJ assistant (js/aj.js). AJ only reports
+    // what is in here, so it can never claim data the page didn't load.
+    window.citypulseSnapshot = Object.freeze({
+      renderedAt: Date.now(), weather, reports: reportData, roads, hazards, status,
+      pipelineTs: dataTimestamp, staleAfterMs: PIPELINE_STALE_MS, live: { ...liveState },
+    });
   }
+
+  incidentMore?.addEventListener('click', () => {
+    incidentsExpanded = !incidentsExpanded;
+    syncIncidentMore(listRoot.children.length);
+  });
 
   // "Show more" on long incident descriptions (delegated: list re-renders).
   listRoot.addEventListener('click', e => {
@@ -752,21 +762,53 @@
         b.setAttribute('aria-pressed', String(b === btn));
       });
       activeFilter = btn.dataset.filter;
+      incidentsExpanded = false;
       mapFitted = false;
       render();
     });
   });
 
   // Map
-  let map, layerGroup;
+  // Locked until the visitor turns it on, so scrolling or swiping past it
+  // moves the page, not the map. Locked = Leaflet's own gesture handlers
+  // disabled; that also drops Leaflet's touch-action: none, so phones scroll
+  // the page natively. Markers and popups work in both states.
+  let map, layerGroup, zoomControl;
+  let mapActive = false;
+  const MAP_HANDLERS = ['dragging', 'touchZoom', 'doubleClickZoom', 'scrollWheelZoom', 'boxZoom', 'keyboard'];
   function ensureMap() {
     if (map) return;
-    map = L.map('map', { scrollWheelZoom: false }).setView(CITY_CONFIG.center, CITY_CONFIG.zoom);
+    map = L.map('map', {
+      zoomControl: false, dragging: false, touchZoom: false, doubleClickZoom: false,
+      scrollWheelZoom: false, boxZoom: false, keyboard: false,
+    }).setView(CITY_CONFIG.center, CITY_CONFIG.zoom);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       attribution: '&copy; OpenStreetMap',
       maxZoom: 19
     }).addTo(map);
     layerGroup = L.layerGroup().addTo(map);
+    zoomControl = L.control.zoom();
+    if (mapToggle) mapToggle.hidden = false;
+  }
+  function setMapActive(on) {
+    if (!map) return;
+    mapActive = on;
+    MAP_HANDLERS.forEach(h => map[h] && (on ? map[h].enable() : map[h].disable()));
+    if (on) zoomControl.addTo(map); else zoomControl.remove();
+    map.getContainer().classList.toggle('map-active', on);
+    mapToggle.setAttribute('aria-pressed', String(on));
+    mapToggle.textContent = on ? 'Lock map' : 'Enable map interaction';
+    mapToggle.classList.toggle('on', on);
+  }
+  if (mapToggle) {
+    mapToggle.hidden = true; // shown once Leaflet has loaded
+    mapToggle.addEventListener('click', () => {
+      setMapActive(!mapActive);
+      if (mapActive) map.getContainer().focus({ preventScroll: true });
+    });
+    document.getElementById('map')?.addEventListener('keydown', e => {
+      if (e.key === 'Escape' && mapActive) { setMapActive(false); mapToggle.focus(); }
+    });
   }
   const markerIcon = (bg, emoji, size) => L.divIcon({
     className: 'cp-marker',
@@ -826,8 +868,6 @@
     }
   }
 
-  renderSeason();
-  renderShortcuts();
   render();
 
   // Auto-refresh every minute — data files are tiny static JSON on a CDN,

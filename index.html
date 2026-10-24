@@ -10,7 +10,7 @@
   <meta name="description" content="Live weather, Environment Canada alerts, highway conditions, closures and cameras for Neepawa, Manitoba — updated automatically around the clock." />
   <title>CityPulse — Neepawa Live Status</title>
   <link rel="icon" href="favicon.svg" type="image/svg+xml" />
-  <meta name="theme-color" content="#2a78d6" />
+  <meta name="theme-color" content="#f4f7fa" />
   <link rel="canonical" href="https://aj01-a.github.io/citypulse/" />
   <!-- Link previews (Facebook, iMessage, Slack, X). og:image must be an
        absolute URL — relative paths are ignored by every scraper. -->
@@ -46,15 +46,10 @@
       <div class="nav-right">
         <ul class="nav-links">
           <li><a href="index.html" class="active" aria-current="page">Dashboard</a></li>
-          <li><a href="prepare.html">Prepare</a></li>
           <li><a href="resources.html">Resources</a></li>
           <li><a href="about.html">About</a></li>
         </ul>
-        <button class="theme-toggle" type="button" aria-pressed="false">
-          <span class="sr-only">Dark theme</span>
-          <span class="icon-moon" aria-hidden="true">&#9790;</span>
-          <span class="icon-sun" aria-hidden="true">&#9728;</span>
-        </button>
+        <div class="appearance" data-appearance></div>
         <button class="nav-toggle" aria-label="Open menu" aria-expanded="false">
           <span></span><span></span><span></span>
         </button>
@@ -63,11 +58,10 @@
     <nav class="section-bar" aria-label="Dashboard sections">
       <div class="container section-bar-inner">
         <a href="#today">Today</a>
-        <a href="#hazards">Hazards</a>
-        <a href="#travel">Roads &amp; travel</a>
+        <a href="#travel">Roads</a>
+        <a href="#hazards">Hazard Watch</a>
         <a href="#camerasSection">Cameras</a>
-        <a href="#prepare">Prepare</a>
-        <a href="#community">Community</a>
+        <a href="#community">Local links</a>
       </div>
     </nav>
   </header>
@@ -81,7 +75,7 @@
       <div class="alert-banner" id="alertBanner" role="alert"></div>
     </div>
 
-    <!-- A. Today: overall status (why + how fresh) beside current weather -->
+    <!-- Today: overall status (why + how fresh) beside current weather -->
     <section class="container today" id="today" aria-labelledby="cityName">
       <div class="status-banner" id="overallStatus">
         <div class="status-top">
@@ -101,40 +95,15 @@
       </div>
     </section>
 
-    <!-- F. Quick actions -->
-    <nav class="container quick-actions" aria-label="Quick actions">
-      <a class="qa" href="#travel"><span class="qa-ico" aria-hidden="true">🛣</span>Road conditions</a>
-      <a class="qa" href="https://weather.gc.ca/en/location/index.html?coords=50.229,-99.466" target="_blank" rel="noopener"><span class="qa-ico" aria-hidden="true">⚠</span>Official alerts<span class="sr-only"> (Environment Canada, opens in new tab)</span></a>
-      <a class="qa" href="#camerasSection"><span class="qa-ico" aria-hidden="true">📷</span>Cameras</a>
-      <a class="qa" href="prepare.html"><span class="qa-ico" aria-hidden="true">✅</span>Checklists</a>
-      <a class="qa" href="https://www.neepawa.ca/main-notice/" target="_blank" rel="noopener"><span class="qa-ico" aria-hidden="true">🏛</span>Town notices<span class="sr-only"> (opens in new tab)</span></a>
-      <a class="qa qa-emergency" href="tel:911"><span class="qa-ico" aria-hidden="true">📞</span>Emergency 911</a>
-    </nav>
-
     <section class="container glance" aria-labelledby="glanceHead">
       <h2 id="glanceHead" class="sr-only">At a glance</h2>
       <div class="grid grid-4 status-cards" id="statusCards"></div>
     </section>
 
-    <!-- D. Hazard Watch -->
-    <section class="container hazards-section" id="hazards" aria-labelledby="hazardsHead">
-      <div class="section-head">
-        <div>
-          <p class="eyebrow">Hazard Watch</p>
-          <h2 id="hazardsHead">Smoke, fire &amp; river</h2>
-        </div>
-        <p class="muted small">Official and satellite feeds · each card shows its source and age</p>
-      </div>
-      <div class="grid grid-3 status-cards" id="hazardCards"></div>
-    </section>
-
-    <!-- C. Roads & travel -->
+    <!-- Roads & travel -->
     <section class="container travel" id="travel" aria-labelledby="travelHead">
       <div class="section-head">
-        <div>
-          <p class="eyebrow">Roads &amp; travel</p>
-          <h2 id="travelHead">Before you drive</h2>
-        </div>
+        <h2 id="travelHead" tabindex="-1"><span class="sh-ico" aria-hidden="true">🛣</span>Roads &amp; travel</h2>
         <a class="small" href="https://www.manitoba511.ca/" target="_blank" rel="noopener">Manitoba 511 ↗</a>
       </div>
       <div class="travel-note" id="travelNote" hidden></div>
@@ -150,10 +119,14 @@
             </div>
           </div>
           <ul class="incidents" id="incidentList"></ul>
+          <button type="button" class="list-more" id="incidentMore" aria-controls="incidentList" aria-expanded="false" hidden></button>
         </div>
         <aside aria-labelledby="mapHead">
           <div class="section-head sub"><h3 id="mapHead">Map</h3></div>
-          <div id="map" class="map" role="region" aria-label="Map of incidents, cameras and hazards"></div>
+          <div class="map-wrap">
+            <div id="map" class="map" role="region" aria-label="Map of incidents, cameras and hazards"></div>
+            <button type="button" class="map-toggle" id="mapToggle" aria-controls="map" aria-pressed="false">Enable map interaction</button>
+          </div>
           <ul class="map-legend" aria-label="Map legend">
             <li><span class="lg lg-road" aria-hidden="true">🚧</span>Road event</li>
             <li><span class="lg lg-weather" aria-hidden="true">🌩</span>Weather alert</li>
@@ -161,7 +134,7 @@
             <li><span class="lg lg-fire" aria-hidden="true">🔥</span>Wildfire zone</li>
             <li><span class="lg lg-river" aria-hidden="true">🌊</span>River gauge</li>
           </ul>
-          <p class="muted small">Road events within 60 km, cameras within 120 km, fires within 200 km. Tiles &copy; OpenStreetMap contributors.</p>
+          <p class="muted small">Markers can be tapped any time. Turn on map interaction to pan and zoom. Road events within 60 km, cameras within 120 km, fires within 200 km. Tiles &copy; OpenStreetMap contributors.</p>
         </aside>
       </div>
 
@@ -176,38 +149,36 @@
       </div>
     </section>
 
+    <!-- Hazard Watch (moves above Roads when a hazard is the most severe thing) -->
+    <section class="container hazards-section" id="hazards" aria-labelledby="hazardsHead">
+      <div class="section-head">
+        <h2 id="hazardsHead" tabindex="-1"><span class="sh-ico" aria-hidden="true">🛡</span>Hazard Watch</h2>
+        <p class="muted small">Smoke, wildfires and river level · each card shows its source and age</p>
+      </div>
+      <div class="grid grid-3 status-cards" id="hazardCards"></div>
+    </section>
+
     <section class="container cameras-section" id="camerasSection" hidden aria-labelledby="camHead">
       <div class="section-head">
-        <div>
-          <p class="eyebrow">Highway cameras</p>
-          <h2 id="camHead">Live views nearby</h2>
-        </div>
+        <h2 id="camHead" tabindex="-1"><span class="sh-ico" aria-hidden="true">📷</span>Highway cameras</h2>
         <p class="muted small">Manitoba 511 · nearest first · images refresh every minute</p>
       </div>
       <div class="camera-grid" id="cameraGrid"></div>
     </section>
 
-    <!-- E. Prepare + community -->
-    <section class="container prepare-section" id="prepare" aria-labelledby="prepHead">
-      <div class="section-head">
-        <div>
-          <p class="eyebrow">Prepare</p>
-          <h2 id="prepHead">This season in Neepawa</h2>
-        </div>
-        <a class="small" href="prepare.html">All seasons &amp; kits →</a>
-      </div>
-      <div class="season-teaser" id="seasonTeaser"></div>
-    </section>
-
     <section class="container community-section" id="community" aria-labelledby="commHead">
       <div class="section-head">
-        <div>
-          <p class="eyebrow">Community</p>
-          <h2 id="commHead">Your shortcuts &amp; local resources</h2>
-        </div>
-        <a class="small" href="resources.html">Full directory →</a>
+        <h2 id="commHead" tabindex="-1"><span class="sh-ico" aria-hidden="true">🏛</span>Local links</h2>
+        <a class="small" href="resources.html">All resources &amp; FAQ →</a>
       </div>
-      <div class="shortcuts" id="shortcuts"></div>
+      <ul class="local-links">
+        <li><a href="https://www.neepawa.ca/connect/" target="_blank" rel="noopener"><strong>Neepawa Connect</strong><span>Town emergency notifications sign-up</span></a></li>
+        <li><a href="https://www.hydro.mb.ca/outages/" target="_blank" rel="noopener"><strong>Power outages</strong><span>Manitoba Hydro outage map</span></a></li>
+        <li><a href="https://www.neepawa.ca/main-notice/" target="_blank" rel="noopener"><strong>Town notices</strong><span>Town of Neepawa</span></a></li>
+        <li><a href="https://www.neepawa.ca/snow-clearing-information/" target="_blank" rel="noopener"><strong>Snow clearing</strong><span>How town streets are cleared</span></a></li>
+        <li><a href="https://weather.gc.ca/en/location/index.html?coords=50.229,-99.466" target="_blank" rel="noopener"><strong>Official forecast</strong><span>Environment Canada, Neepawa</span></a></li>
+        <li><a href="https://www.manitoba.ca/floodinfo/" target="_blank" rel="noopener"><strong>Flood information</strong><span>Province of Manitoba</span></a></li>
+      </ul>
     </section>
   </main>
 
@@ -218,7 +189,7 @@
           <span class="pulse-dot" aria-hidden="true"></span>
           <span>City<strong>Pulse</strong></span>
         </p>
-        <p class="muted small">Independent, automated status dashboard for Neepawa, Manitoba. Not an emergency service — in an emergency, call 911.</p>
+        <p class="muted small">Independent, automated status dashboard for Neepawa, Manitoba. Not an emergency service and not affiliated with the Town.</p>
       </div>
       <div>
         <h4>Data sources</h4>
@@ -231,12 +202,11 @@
         </ul>
       </div>
       <div>
-        <h4>Emergency</h4>
+        <h4>Official info</h4>
         <ul>
-          <li><a href="tel:911">Emergencies: 911</a></li>
           <li><a href="tel:511">Road info by phone: 511</a></li>
-          <li><a href="https://www.neepawa.ca/connect/" target="_blank" rel="noopener">Neepawa Connect alerts</a></li>
-          <li><a href="https://www.hydro.mb.ca/outages/" target="_blank" rel="noopener">Manitoba Hydro outages</a></li>
+          <li><a href="https://www.neepawa.ca/services/emergency-services/" target="_blank" rel="noopener">Town emergency services</a></li>
+          <li><a href="https://www.gov.mb.ca/emo/" target="_blank" rel="noopener">Manitoba Emergency Management</a></li>
         </ul>
       </div>
     </div>
@@ -247,5 +217,6 @@
   <script src="js/data.js"></script>
   <script src="js/content.js"></script>
   <script src="js/main.js"></script>
+  <script src="js/aj.js"></script>
 </body>
 </html>

@@ -1,17 +1,12 @@
-// Resources page: searchable directory + FAQ + saved shortcuts.
+// Resources page: searchable directory + FAQ.
 // Content comes from js/content.js. Search input is only ever used as
 // plain text (matched with includes, rendered with textContent).
 (() => {
-  const KEY = 'citypulse-shortcuts';
   const listEl = document.getElementById('resList');
   const faqEl = document.getElementById('faqList');
   const input = document.getElementById('resSearch');
   const status = document.getElementById('searchStatus');
   if (!listEl || typeof RESOURCES === 'undefined') return;
-
-  const load = () => { try { const v = JSON.parse(localStorage.getItem(KEY) || '[]'); return Array.isArray(v) ? v : []; } catch { return []; } };
-  const save = v => { try { localStorage.setItem(KEY, JSON.stringify(v)); } catch { /* private mode */ } };
-  let saved = load();
 
   const el = (tag, props = {}, ...kids) => {
     const n = document.createElement(tag);
@@ -35,22 +30,8 @@
       const external = r.url.startsWith('http');
       const link = el('a', { class: 'res-title', href: r.url, text: r.title });
       if (external) { link.target = '_blank'; link.rel = 'noopener'; }
-      const star = el('button', { class: 'star', type: 'button', 'aria-pressed': String(saved.includes(r.id)) });
-      const syncStar = () => {
-        const on = saved.includes(r.id);
-        star.setAttribute('aria-pressed', String(on));
-        star.textContent = on ? '★' : '☆';
-        star.setAttribute('aria-label', `${on ? 'Remove' : 'Save'} “${r.title}” ${on ? 'from' : 'to'} your dashboard shortcuts`);
-      };
-      syncStar();
-      star.addEventListener('click', () => {
-        saved = saved.includes(r.id) ? saved.filter(x => x !== r.id) : [...saved, r.id];
-        save(saved);
-        syncStar();
-      });
       const item = el('div', { class: 'res-item' },
-        el('div', { class: 'res-body' }, link, el('p', { text: r.desc }), el('span', { class: 'res-org', text: r.org })),
-        star);
+        el('div', { class: 'res-body' }, link, el('p', { text: r.desc }), el('span', { class: 'res-org', text: r.org })));
       grid.append(item);
       entries.push({ node: item, section, text: `${r.title} ${r.desc} ${r.org} ${cat.category}`.toLowerCase() });
     });

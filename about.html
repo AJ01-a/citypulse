@@ -8,7 +8,7 @@
   <meta name="description" content="How CityPulse Neepawa works and where its data comes from." />
   <title>About — CityPulse Neepawa</title>
   <link rel="icon" href="favicon.svg" type="image/svg+xml" />
-  <meta name="theme-color" content="#2a78d6" />
+  <meta name="theme-color" content="#f4f7fa" />
   <link rel="canonical" href="https://aj01-a.github.io/citypulse/about.html" />
   <meta property="og:type" content="website" />
   <meta property="og:site_name" content="CityPulse" />
@@ -38,15 +38,10 @@
       <div class="nav-right">
         <ul class="nav-links">
           <li><a href="index.html">Dashboard</a></li>
-          <li><a href="prepare.html">Prepare</a></li>
           <li><a href="resources.html">Resources</a></li>
           <li><a href="about.html" class="active" aria-current="page">About</a></li>
         </ul>
-        <button class="theme-toggle" type="button" aria-pressed="false">
-          <span class="sr-only">Dark theme</span>
-          <span class="icon-moon" aria-hidden="true">&#9790;</span>
-          <span class="icon-sun" aria-hidden="true">&#9728;</span>
-        </button>
+        <div class="appearance" data-appearance></div>
         <button class="nav-toggle" aria-label="Open menu" aria-expanded="false">
           <span></span><span></span><span></span>
         </button>
@@ -95,8 +90,15 @@
         <li><strong>Unconfirmed / No data</strong> (grey) — a source didn’t respond. CityPulse never treats a missing source as “all clear”.</li>
       </ul>
 
+      <h2>Using the dashboard</h2>
+      <ul>
+        <li><strong>Map</strong> — locked by default so scrolling the page never moves it. Tap a marker for details any time; press <em>Enable map interaction</em> to pan and zoom, and <em>Lock map</em> (or Esc) to stop.</li>
+        <li><strong>AJ</strong> — the small sphere in the corner is CityPulse’s guide. Ask it where things are, or what the loaded data says about weather, alerts, roads, hazards, cameras or data age. AJ runs entirely in your browser, answers only from data this page has loaded, and says so when something is unavailable or out of date. It isn’t a general chatbot and doesn’t forecast anything itself.</li>
+        <li><strong>Appearance</strong> — the half-filled circle in the header switches between Light (the default), Dark and Match device.</li>
+      </ul>
+
       <h2>Privacy</h2>
-      <p>No analytics, advertising or tracking. Your theme, checklist ticks and saved shortcuts are stored only in your own browser. Map tiles load from OpenStreetMap, camera images from Manitoba 511, and fonts from Google Fonts, so those services see standard web requests from your browser.</p>
+      <p>No analytics, advertising or tracking. Your appearance choice is stored only in your own browser. The AJ assistant runs entirely in your browser: questions you type are never sent anywhere. Map tiles load from OpenStreetMap, camera images from Manitoba 511, and fonts from Google Fonts, so those services see standard web requests from your browser.</p>
 
       <h2>What this is not</h2>
       <div class="callout warning">
@@ -127,7 +129,7 @@
           <span class="pulse-dot" aria-hidden="true"></span>
           <span>City<strong>Pulse</strong></span>
         </p>
-        <p class="muted small">Fully automated status dashboard for Neepawa, Manitoba. Data refreshes itself — no human in the loop.</p>
+        <p class="muted small">Independent, automated status dashboard for Neepawa, Manitoba. Not an emergency service and not affiliated with the Town.</p>
       </div>
       <div>
         <h4>Data sources</h4>
@@ -140,10 +142,10 @@
         </ul>
       </div>
       <div>
-        <h4>Emergency</h4>
+        <h4>Official info</h4>
         <ul>
-          <li><a href="tel:911">Emergencies: 911</a></li>
           <li><a href="tel:511">Road info by phone: 511</a></li>
+          <li><a href="https://www.neepawa.ca/services/emergency-services/" target="_blank" rel="noopener">Town emergency services</a></li>
           <li><a href="https://www.hydro.mb.ca/outages/" target="_blank" rel="noopener">Manitoba Hydro outages</a></li>
         </ul>
       </div>
@@ -151,6 +153,8 @@
     <p class="copyright">&copy; <span id="year"></span> CityPulse · Not affiliated with the Town of Neepawa or any utility.</p>
   </footer>
 
+  <script src="js/content.js"></script>
   <script src="js/main.js"></script>
+  <script src="js/aj.js"></script>
 </body>
 </html>

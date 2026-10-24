@@ -8,7 +8,7 @@
   <meta name="description" content="Official Neepawa and Manitoba resources — emergency contacts, town services, weather, roads, wildfire and flood information — plus answers to common questions." />
   <title>Resources — CityPulse Neepawa</title>
   <link rel="icon" href="favicon.svg" type="image/svg+xml" />
-  <meta name="theme-color" content="#2a78d6" />
+  <meta name="theme-color" content="#f4f7fa" />
   <link rel="canonical" href="https://aj01-a.github.io/citypulse/resources.html" />
   <meta property="og:type" content="website" />
   <meta property="og:site_name" content="CityPulse" />
@@ -36,15 +36,10 @@
       <div class="nav-right">
         <ul class="nav-links">
           <li><a href="index.html">Dashboard</a></li>
-          <li><a href="prepare.html">Prepare</a></li>
           <li><a href="resources.html" class="active" aria-current="page">Resources</a></li>
           <li><a href="about.html">About</a></li>
         </ul>
-        <button class="theme-toggle" type="button" aria-pressed="false">
-          <span class="sr-only">Dark theme</span>
-          <span class="icon-moon" aria-hidden="true">&#9790;</span>
-          <span class="icon-sun" aria-hidden="true">&#9728;</span>
-        </button>
+        <div class="appearance" data-appearance></div>
         <button class="nav-toggle" aria-label="Open menu" aria-expanded="false">
           <span></span><span></span><span></span>
         </button>
@@ -87,7 +82,7 @@
           <span class="pulse-dot" aria-hidden="true"></span>
           <span>City<strong>Pulse</strong></span>
         </p>
-        <p class="muted small">Independent, automated status dashboard for Neepawa, Manitoba. Not an emergency service — in an emergency, call 911.</p>
+        <p class="muted small">Independent, automated status dashboard for Neepawa, Manitoba. Not an emergency service and not affiliated with the Town.</p>
       </div>
       <div>
         <h4>Town of Neepawa</h4>
@@ -98,10 +93,10 @@
         </ul>
       </div>
       <div>
-        <h4>Emergency</h4>
+        <h4>Official info</h4>
         <ul>
-          <li><a href="tel:911">Emergencies: 911</a></li>
           <li><a href="tel:511">Road info by phone: 511</a></li>
+          <li><a href="https://www.neepawa.ca/services/emergency-services/" target="_blank" rel="noopener">Town emergency services</a></li>
           <li><a href="https://www.hydro.mb.ca/outages/" target="_blank" rel="noopener">Manitoba Hydro outages</a></li>
         </ul>
       </div>
@@ -112,5 +107,6 @@
   <script src="js/content.js"></script>
   <script src="js/resources.js"></script>
   <script src="js/main.js"></script>
+  <script src="js/aj.js"></script>
 </body>
 </html>
