@@ -32,8 +32,10 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
   <link rel="stylesheet" href="css/style.css" />
+  <script src="js/theme.js"></script>
 </head>
 <body>
+  <a class="skip-link" href="#main">Skip to main content</a>
   <header class="site-header">
     <nav class="nav container">
       <a href="index.html" class="brand">
@@ -41,16 +43,24 @@
         <span>City<strong>Pulse</strong></span>
         <span class="brand-loc">Neepawa</span>
       </a>
-      <button class="nav-toggle" aria-label="Open menu" aria-expanded="false">
-        <span></span><span></span><span></span>
-      </button>
-      <ul class="nav-links">
-        <li><a href="index.html" class="active">Dashboard</a></li>
-        <li><a href="about.html">About</a></li>
-      </ul>
+      <div class="nav-right">
+        <ul class="nav-links">
+          <li><a href="index.html" class="active">Dashboard</a></li>
+          <li><a href="about.html">About</a></li>
+        </ul>
+        <button class="theme-toggle" type="button" aria-pressed="false">
+          <span class="sr-only">Dark theme</span>
+          <span class="icon-moon" aria-hidden="true">&#9790;</span>
+          <span class="icon-sun" aria-hidden="true">&#9728;</span>
+        </button>
+        <button class="nav-toggle" aria-label="Open menu" aria-expanded="false">
+          <span></span><span></span><span></span>
+        </button>
+      </div>
     </nav>
   </header>
 
+  <main id="main">
   <div class="stale-banner-wrap container" id="staleBannerWrap" hidden>
     <div class="stale-banner" id="staleBanner" role="status"></div>
   </div>
@@ -68,7 +78,7 @@
           <h1 id="cityName">Neepawa, Manitoba</h1>
         </div>
         <div class="status-summary">
-          <p class="status-text" id="statusText">Loading…</p>
+          <p class="status-text" id="statusText" aria-live="polite">Loading…</p>
           <p class="updated">Updated <span id="lastUpdate">just now</span> · refreshes automatically</p>
         </div>
       </div>
@@ -99,10 +109,10 @@
     <div>
       <div class="section-head">
         <h2>Active Incidents</h2>
-        <div class="filters">
-          <button class="chip active" data-filter="all">All</button>
-          <button class="chip" data-filter="weather">Weather</button>
-          <button class="chip" data-filter="road">Roads</button>
+        <div class="filters" role="group" aria-label="Filter incidents">
+          <button class="chip active" data-filter="all" aria-pressed="true">All</button>
+          <button class="chip" data-filter="weather" aria-pressed="false">Weather</button>
+          <button class="chip" data-filter="road" aria-pressed="false">Roads</button>
         </div>
       </div>
       <ul class="incidents" id="incidentList"></ul>
@@ -131,6 +141,8 @@
     </div>
     <div class="camera-grid" id="cameraGrid"></div>
   </section>
+
+  </main>
 
   <footer class="site-footer">
     <div class="container footer-grid">

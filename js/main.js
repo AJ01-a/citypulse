@@ -423,7 +423,10 @@
     const status = statusReasons(reportData, roads, hazards, weather);
     banner.classList.remove('warn', 'bad', 'unknown');
     if (status.level !== 'ok') banner.classList.add(status.level);
-    statusText.textContent = statusSentence(status);
+    // aria-live region: only touch it when the text changes, or screen
+    // readers re-announce it on every one-minute refresh.
+    const sentence = statusSentence(status);
+    if (statusText.textContent !== sentence) statusText.textContent = sentence;
 
     // The pipeline clock: newest timestamp any data file carries. Never the
     // browser-side live overlays (currentLiveAt / live air quality).
@@ -514,8 +517,10 @@
   // Filters
   document.querySelectorAll('.chip').forEach(btn => {
     btn.addEventListener('click', () => {
-      document.querySelectorAll('.chip').forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
+      document.querySelectorAll('.chip').forEach(b => {
+        b.classList.toggle('active', b === btn);
+        b.setAttribute('aria-pressed', String(b === btn));
+      });
       activeFilter = btn.dataset.filter;
       render();
     });

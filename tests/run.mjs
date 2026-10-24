@@ -94,6 +94,10 @@ const scenarios = {
       ...check(o.cameraCards === 8, `expected 8 camera cards, got ${o.cameraCards}`),
     ],
   },
+  "fresh-dark": {
+    data: pipelineData(), scheme: "dark",
+    expect: o => check(o.bodyBgLum < 0.1, `OS dark preference should give a dark page (body luminance ${o.bodyBgLum})`),
+  },
   "stale-5h": {
     data: pipelineData(5 * HOUR),
     expect: o => [
@@ -193,8 +197,20 @@ const REQUIRED_IDS = ["year", "statusCards", "cityName", "overallStatus", "statu
   "weatherCard", "alertBannerWrap", "alertBanner", "conditionsList", "conditionsUpdated", "cameraGrid",
   "camerasSection", "hazardCards", "staleBannerWrap", "staleBanner", "map"];
 
+// Poll with page.evaluate instead of page.waitForFunction: the latter can
+// fall back to eval(), which the site's CSP (correctly) blocks.
+async function waitForStatus(page, timeout = 15000) {
+  const end = Date.now() + timeout;
+  while (Date.now() < end) {
+    const t = await page.evaluate(() => document.getElementById("statusText")?.textContent).catch(() => null);
+    if (t && t !== "Loading…") return true;
+    await page.waitForTimeout(100);
+  }
+  return false;
+}
+
 async function run(browser, name, sc, vpName, viewport) {
-  const ctx = await browser.newContext({ viewport, deviceScaleFactor: 1, timezoneId: "America/Winnipeg" });
+  const ctx = await browser.newContext({ viewport, deviceScaleFactor: 1, timezoneId: "America/Winnipeg", colorScheme: sc.scheme || "light" });
   const page = await ctx.newPage();
   const errors = [];
   page.on("pageerror", e => errors.push("pageerror: " + e.message));
@@ -214,8 +230,7 @@ async function run(browser, name, sc, vpName, viewport) {
   await page.route("https://*.tile.openstreetmap.org/**", r => r.fulfill({ status: 200, contentType: "image/png", body: Buffer.alloc(0) }));
 
   await page.goto(BASE + "/index.html", { waitUntil: "load" });
-  await page.waitForFunction(() => document.getElementById("statusText")?.textContent !== "Loading…", null, { timeout: 15000 })
-    .catch(() => errors.push("pageerror: statusText never left Loading…"));
+  if (!await waitForStatus(page)) errors.push("pageerror: statusText never left Loading…");
   await page.waitForTimeout(800);
   // Camera images are loading="lazy": bring them into view so they load.
   await page.evaluate(() => document.getElementById("camerasSection")?.scrollIntoView());
@@ -242,6 +257,10 @@ async function run(browser, name, sc, vpName, viewport) {
       cameraOffline: $("cameraGrid").querySelectorAll(".cam-offline").length,
       hScroll: document.documentElement.scrollWidth > window.innerWidth,
       missingIds: ids.filter(id => !$(id)),
+      bodyBgLum: (() => {
+        const [r, g, b] = getComputedStyle(document.body).backgroundColor.match(/\d+/g).map(Number);
+        return +((0.2126 * r + 0.7152 * g + 0.0722 * b) / 255).toFixed(3);
+      })(),
     };
   }, REQUIRED_IDS);
 
@@ -253,9 +272,22 @@ async function run(browser, name, sc, vpName, viewport) {
     o.nav = { opened, closed: (await t.getAttribute("aria-expanded")) === "false" };
   }
   await page.screenshot({ path: path.join(OUT, `${name}-${vpName}.png`), fullPage: true });
+  if (name === "fresh" && vpName === "desktop") {
+    // Theme toggle: switches to dark and survives a reload.
+    await page.click(".theme-toggle");
+    const pressed = await page.getAttribute(".theme-toggle", "aria-pressed");
+    await page.reload({ waitUntil: "load" });
+    const theme = await page.evaluate(() => document.documentElement.dataset.theme);
+    if (pressed !== "true" || theme !== "dark") errors.push(`pageerror: theme toggle (pressed=${pressed}, after reload data-theme=${theme})`);
+    await page.click(".theme-toggle");
+    // About page shares the header and scripts.
+    const about = await page.goto(BASE + "/about.html", { waitUntil: "load" });
+    if (!about.ok() || !(await page.locator("main#main h1").isVisible())) errors.push("pageerror: about page did not render");
+    await page.goto(BASE + "/index.html", { waitUntil: "load" });
+  }
   if (name === "fresh") {
     await page.reload({ waitUntil: "load" });
-    await page.waitForFunction(() => document.getElementById("statusText")?.textContent !== "Loading…", null, { timeout: 15000 });
+    await waitForStatus(page);
     const again = await page.evaluate(() => document.getElementById("statusText").textContent);
     if (again !== o.statusText) errors.push(`pageerror: reload changed status ("${o.statusText}" -> "${again}")`);
   }

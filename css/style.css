@@ -1,4 +1,8 @@
+/* Colour tokens. Every text colour is checked against WCAG AA (4.5:1) on
+   --surface and --surface-2 in both themes; --primary is for fills and
+   borders only, links use --link. */
 :root {
+  color-scheme: light;
   --bg: #f9f9f7;
   --surface: #fcfcfb;
   --surface-2: #f0efec;
@@ -6,14 +10,22 @@
   --ring: rgba(11, 11, 11, .10);
   --fg: #0b0b0b;
   --muted: #52514e;
-  --faint: #898781;
+  --faint: #6b6963;
   --primary: #2a78d6;
   --primary-hover: #1c5cab;
+  --link: #1f65bd;
+  --focus: #1f65bd;
   --ok: #0ca30c;
   --ok-text: #006300;
-  --warn: #b45309;
-  --bad: #d03b3b;
+  --warn: #9a4a07;
+  --bad: #c42f2f;
   --info: #2a78d6;
+  --alert-bg: #c42f2f;
+  --caution-bg: #fff8ec;
+  --caution-fg: #6b3d05;
+  --caution-border: #f0c886;
+  --header-bg: rgba(252, 252, 251, .85);
+  --weather-grad: linear-gradient(135deg, #0d366b 0%, #1c5cab 60%, #2a78d6 100%);
   --shadow: 0 1px 2px rgba(11,11,11,.05), 0 1px 3px rgba(11,11,11,.06);
   --shadow-lg: 0 12px 32px rgba(11,11,11,.10), 0 4px 10px rgba(11,11,11,.05);
   --radius: 16px;
@@ -21,6 +33,38 @@
   --sans: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --mono: "JetBrains Mono", "Consolas", monospace;
   --max-w: 1200px;
+}
+/* Dark: follows the OS unless the visitor picked light; data-theme="dark"
+   (set by js/theme.js) forces it. The two blocks must stay identical. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #0f1216; --surface: #171b21; --surface-2: #20252d; --border: #2c323c;
+    --ring: rgba(255, 255, 255, .10);
+    --fg: #ebe9e4; --muted: #b7b4ac; --faint: #9a978f;
+    --primary: #4b8fe0; --primary-hover: #6ba8f2; --link: #6ba8f2; --focus: #8bbcf6;
+    --ok: #3cc43c; --ok-text: #6fd66f; --warn: #f0a24a; --bad: #f27b7b; --info: #6ba8f2;
+    --alert-bg: #b02a2a;
+    --caution-bg: #2a2112; --caution-fg: #f5c98a; --caution-border: #5c4520;
+    --header-bg: rgba(23, 27, 33, .85);
+    --weather-grad: linear-gradient(135deg, #0a2447 0%, #143f78 60%, #1c5cab 100%);
+    --shadow: 0 1px 2px rgba(0,0,0,.4), 0 1px 3px rgba(0,0,0,.3);
+    --shadow-lg: 0 12px 32px rgba(0,0,0,.45), 0 4px 10px rgba(0,0,0,.3);
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #0f1216; --surface: #171b21; --surface-2: #20252d; --border: #2c323c;
+  --ring: rgba(255, 255, 255, .10);
+  --fg: #ebe9e4; --muted: #b7b4ac; --faint: #9a978f;
+  --primary: #4b8fe0; --primary-hover: #6ba8f2; --link: #6ba8f2; --focus: #8bbcf6;
+  --ok: #3cc43c; --ok-text: #6fd66f; --warn: #f0a24a; --bad: #f27b7b; --info: #6ba8f2;
+  --alert-bg: #b02a2a;
+  --caution-bg: #2a2112; --caution-fg: #f5c98a; --caution-border: #5c4520;
+  --header-bg: rgba(23, 27, 33, .85);
+  --weather-grad: linear-gradient(135deg, #0a2447 0%, #143f78 60%, #1c5cab 100%);
+  --shadow: 0 1px 2px rgba(0,0,0,.4), 0 1px 3px rgba(0,0,0,.3);
+  --shadow-lg: 0 12px 32px rgba(0,0,0,.45), 0 4px 10px rgba(0,0,0,.3);
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -34,7 +78,24 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 img { max-width: 100%; display: block; }
-a { color: var(--primary); text-decoration: none; }
+
+/* ----- Accessibility ----- */
+:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; border-radius: 4px; }
+.skip-link {
+  position: absolute; left: 1rem; top: -100px; z-index: 2000;
+  background: var(--fg); color: var(--bg); padding: .6rem 1rem; border-radius: var(--radius-sm);
+  font-weight: 600;
+}
+.skip-link:focus { top: .75rem; text-decoration: none; }
+.sr-only {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+}
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}
+a { color: var(--link); text-decoration: none; }
 a:hover { text-decoration: underline; }
 ul { list-style: none; }
 
@@ -47,13 +108,13 @@ h1 { font-size: clamp(1.75rem, 4vw, 2.5rem); }
 h2 { font-size: clamp(1.35rem, 3vw, 1.75rem); }
 h3 { font-size: 1.125rem; }
 h4 { font-size: .75rem; text-transform: uppercase; letter-spacing: .1em; color: var(--faint); margin-bottom: .75rem; }
-.eyebrow { font-size: .75rem; letter-spacing: .15em; text-transform: uppercase; font-weight: 600; color: var(--primary); margin-bottom: .5rem; }
+.eyebrow { font-size: .75rem; letter-spacing: .15em; text-transform: uppercase; font-weight: 600; color: var(--link); margin-bottom: .5rem; }
 .lede { font-size: 1.125rem; color: var(--muted); max-width: 60ch; margin-top: .75rem; }
 
 /* Header */
 .site-header {
   position: sticky; top: 0; z-index: 1000;
-  background: rgba(252, 252, 251, .82);
+  background: var(--header-bg);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   border-bottom: 1px solid var(--border);
@@ -86,6 +147,17 @@ h4 { font-size: .75rem; text-transform: uppercase; letter-spacing: .1em; color: 
 .nav-links { display: flex; gap: 1.75rem; align-items: center; }
 .nav-links a { color: var(--muted); font-weight: 500; font-size: .95rem; text-decoration: none; }
 .nav-links a:hover, .nav-links a.active { color: var(--fg); }
+.nav-right { display: flex; align-items: center; gap: .5rem; }
+.theme-toggle {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 38px; height: 38px; border-radius: 50%;
+  background: transparent; color: var(--muted); border: 1px solid var(--border);
+  cursor: pointer; font-size: 1.05rem; line-height: 1; font-family: inherit;
+}
+.theme-toggle:hover { color: var(--fg); border-color: var(--faint); }
+.theme-toggle .icon-sun { display: none; }
+.theme-toggle[aria-pressed="true"] .icon-sun { display: inline; }
+.theme-toggle[aria-pressed="true"] .icon-moon { display: none; }
 
 .nav-toggle { display: none; background: transparent; border: 0; cursor: pointer; flex-direction: column; gap: 5px; padding: 8px; }
 .nav-toggle span { display: block; width: 22px; height: 2px; background: var(--fg); transition: .2s; }
@@ -144,9 +216,9 @@ h4 { font-size: .75rem; text-transform: uppercase; letter-spacing: .1em; color: 
   padding: .18rem .55rem; border-radius: 999px; letter-spacing: .05em;
   white-space: nowrap;
 }
-.badge-ok    { background: rgba(12,163,12,.10);  color: var(--ok-text); }
-.badge-warn  { background: rgba(180,83,9,.10);   color: var(--warn); }
-.badge-bad   { background: rgba(208,59,59,.10);  color: var(--bad); }
+.badge-ok    { background: color-mix(in srgb, var(--ok) 12%, transparent);  color: var(--ok-text); }
+.badge-warn  { background: color-mix(in srgb, var(--warn) 12%, transparent); color: var(--warn); }
+.badge-bad   { background: color-mix(in srgb, var(--bad) 12%, transparent);  color: var(--bad); }
 .badge-muted { background: var(--surface-2);     color: var(--faint); }
 .status-card .count { font-size: 2rem; font-weight: 800; letter-spacing: -0.02em; line-height: 1.15; }
 .status-card .count-text { font-size: 1.35rem; padding: .25rem 0; }
@@ -165,7 +237,7 @@ h4 { font-size: .75rem; text-transform: uppercase; letter-spacing: .1em; color: 
   font-family: inherit; cursor: pointer; transition: .15s;
 }
 .chip:hover { color: var(--fg); border-color: var(--faint); }
-.chip.active { background: var(--fg); color: #fff; border-color: var(--fg); }
+.chip.active { background: var(--fg); color: var(--bg); border-color: var(--fg); }
 
 /* Incidents list */
 .incidents { display: flex; flex-direction: column; gap: .75rem; }
@@ -195,8 +267,8 @@ h4 { font-size: .75rem; text-transform: uppercase; letter-spacing: .1em; color: 
 }
 .empty-state .big { font-size: 2.25rem; margin-bottom: .5rem; color: var(--ok-text); }
 .empty-state.compact { padding: 1.25rem 1rem; font-size: .9rem; }
-.empty-state.error { border-style: solid; border-color: #f0c886; background: #fff8ec; color: #6b3d05; }
-.empty-state.error a { color: #6b3d05; text-decoration: underline; }
+.empty-state.error { border-style: solid; border-color: var(--caution-border); background: var(--caution-bg); color: var(--caution-fg); }
+.empty-state.error a { color: var(--caution-fg); text-decoration: underline; }
 
 /* Source badges */
 .src-badge {
@@ -205,7 +277,7 @@ h4 { font-size: .75rem; text-transform: uppercase; letter-spacing: .1em; color: 
   padding: .14rem .5rem; border-radius: 999px; margin-left: .4rem;
   vertical-align: middle;
 }
-.src-badge.verified { background: rgba(12,163,12,.10); color: var(--ok-text); border: 1px solid rgba(12,163,12,.25); }
+.src-badge.verified { background: color-mix(in srgb, var(--ok) 12%, transparent); color: var(--ok-text); border: 1px solid color-mix(in srgb, var(--ok) 30%, transparent); }
 
 /* Map */
 .map {
@@ -214,6 +286,10 @@ h4 { font-size: .75rem; text-transform: uppercase; letter-spacing: .1em; color: 
   margin-bottom: .5rem;
   z-index: 0;
 }
+
+/* OSM tiles are light-only; dim them so the map doesn't glare in dark mode. */
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .leaflet-tile-pane { filter: brightness(.75) contrast(1.1); } }
+:root[data-theme="dark"] .leaflet-tile-pane { filter: brightness(.75) contrast(1.1); }
 
 /* ----- Road conditions ----- */
 .conditions-section { margin-bottom: 2.5rem; }
@@ -275,7 +351,7 @@ h4 { font-size: .75rem; text-transform: uppercase; letter-spacing: .1em; color: 
   border-left: 4px solid var(--primary);
   padding: 1rem 1.25rem; border-radius: var(--radius-sm);
 }
-.callout.warning { border-left-color: var(--bad); background: rgba(208,59,59,.04); }
+.callout.warning { border-left-color: var(--bad); background: color-mix(in srgb, var(--bad) 5%, var(--surface)); }
 .callout h4 { color: var(--fg); font-size: .9rem; text-transform: none; letter-spacing: 0; margin-bottom: .35rem; }
 .callout p { font-size: .9rem; color: var(--muted); }
 
@@ -294,13 +370,13 @@ h4 { font-size: .75rem; text-transform: uppercase; letter-spacing: .1em; color: 
 .footer-grid { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 3rem; margin-bottom: 2rem; }
 .footer-grid li { padding: .25rem 0; }
 .footer-grid a { color: var(--muted); font-size: .9rem; }
-.footer-grid a:hover { color: var(--primary); }
+.footer-grid a:hover { color: var(--link); }
 .copyright { text-align: center; color: var(--faint); font-size: .8rem; padding-top: 1.5rem; border-top: 1px solid var(--border); }
 
 /* ----- Weather hero ----- */
 .hero-weather { padding: 1.25rem 0 0; }
 .weather-card {
-  background: linear-gradient(135deg, #0d366b 0%, #1c5cab 60%, #2a78d6 100%);
+  background: var(--weather-grad);
   color: #fff;
   border-radius: var(--radius);
   padding: 1.75rem 2rem;
@@ -352,7 +428,7 @@ h4 { font-size: .75rem; text-transform: uppercase; letter-spacing: .1em; color: 
 /* ----- EC alert banner ----- */
 .alert-banner-wrap { margin: 1.5rem auto 0; }
 .alert-banner {
-  background: var(--bad);
+  background: var(--alert-bg);
   color: #fff;
   padding: 1rem 1.5rem;
   border-radius: var(--radius);
@@ -374,9 +450,9 @@ h4 { font-size: .75rem; text-transform: uppercase; letter-spacing: .1em; color: 
    which must stay visually subordinate to an actual warning. */
 .stale-banner-wrap { margin: 1.5rem auto 0; }
 .stale-banner {
-  background: #fff8ec;
-  color: #6b3d05;
-  border: 1px solid #f0c886;
+  background: var(--caution-bg);
+  color: var(--caution-fg);
+  border: 1px solid var(--caution-border);
   border-left: 4px solid var(--warn);
   padding: .9rem 1.25rem;
   border-radius: var(--radius);
@@ -386,7 +462,7 @@ h4 { font-size: .75rem; text-transform: uppercase; letter-spacing: .1em; color: 
 .stale-banner .stale-ico { font-size: 1.4rem; flex-shrink: 0; line-height: 1.2; }
 .stale-banner strong { display: block; font-size: .95rem; }
 .stale-banner .stale-meta { font-size: .82rem; display: block; margin-top: .2rem; opacity: .95; }
-.stale-banner a { color: #6b3d05; text-decoration: underline; }
+.stale-banner a { color: var(--caution-fg); text-decoration: underline; }
 
 /* Responsive */
 @media (max-width: 1000px) {

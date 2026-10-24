@@ -24,8 +24,10 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="css/style.css" />
+  <script src="js/theme.js"></script>
 </head>
 <body>
+  <a class="skip-link" href="#main">Skip to main content</a>
   <header class="site-header">
     <nav class="nav container">
       <a href="index.html" class="brand">
@@ -33,16 +35,24 @@
         <span>City<strong>Pulse</strong></span>
         <span class="brand-loc">Neepawa</span>
       </a>
-      <button class="nav-toggle" aria-label="Open menu" aria-expanded="false">
-        <span></span><span></span><span></span>
-      </button>
-      <ul class="nav-links">
-        <li><a href="index.html">Dashboard</a></li>
-        <li><a href="about.html" class="active">About</a></li>
-      </ul>
+      <div class="nav-right">
+        <ul class="nav-links">
+          <li><a href="index.html">Dashboard</a></li>
+          <li><a href="about.html" class="active">About</a></li>
+        </ul>
+        <button class="theme-toggle" type="button" aria-pressed="false">
+          <span class="sr-only">Dark theme</span>
+          <span class="icon-moon" aria-hidden="true">&#9790;</span>
+          <span class="icon-sun" aria-hidden="true">&#9728;</span>
+        </button>
+        <button class="nav-toggle" aria-label="Open menu" aria-expanded="false">
+          <span></span><span></span><span></span>
+        </button>
+      </div>
     </nav>
   </header>
 
+  <main id="main">
   <section class="page-head">
     <div class="container">
       <p class="eyebrow">About</p>
@@ -93,6 +103,8 @@
       <p>Static HTML/CSS/JS hosted on GitHub Pages. A scheduled GitHub Actions workflow polls the public feeds and republishes the site with fresh data (typically every 1&ndash;2 hours; GitHub drops most scheduled firings), and current weather is additionally fetched live in your browser straight from Open-Meteo. There is no server and no database — which also means there is nothing to hack, nothing to overload, and nothing that costs money to run. The Manitoba 511 API key lives in an encrypted GitHub secret and never reaches the browser.</p>
     </div>
   </section>
+
+  </main>
 
   <footer class="site-footer">
     <div class="container footer-grid">
