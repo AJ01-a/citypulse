@@ -572,7 +572,7 @@ a.status-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-lg);
 .shortcuts-note { grid-column: 1 / -1; font-size: .85rem; color: var(--muted); }
 
 /* ----- Prepare page ----- */
-.page-head { padding: 2.5rem 0 1.25rem; }
+.page-head { padding-top: 2.5rem; padding-bottom: 1.25rem; } /* top/bottom only: keep .container side padding */
 .season-tabs { display: flex; gap: .5rem; flex-wrap: wrap; margin: 1.25rem 0 1.5rem; }
 .season-tab {
   display: inline-flex; align-items: center; gap: .4rem; min-height: 44px;

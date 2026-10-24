@@ -61,6 +61,24 @@ The Manitoba 511 API key is used **only inside the workflow**. It never appears 
 
 Features that could not be automated (community incident reports, email subscriptions) were removed.
 
+## Pages
+
+| Page | What it does | Data |
+|---|---|---|
+| `index.html` | Dashboard: overall status with reasons, live weather + next 12 h + 3 days, Hazard Watch, travel note, incidents, map, conditions, cameras, season teaser, saved shortcuts | `data/*.json` + live Open-Meteo |
+| `prepare.html` | Seasonal checklists (current season first) and home/car emergency kits; ticks saved per browser; printable | `js/content.js` |
+| `resources.html` | Searchable directory of official links, star-to-save shortcuts, FAQ | `js/content.js` |
+| `about.html` | How it works, freshness, privacy, caveats | static |
+
+`js/content.js` is hand-maintained. Safety guidance there is quoted or closely paraphrased from the official page each list cites, and CityPulse never publishes schedules, events or announcements of its own — it links to whoever publishes them.
+
+### How the dashboard stays honest
+
+- **Two clocks.** `fetchedAt` in the data files is the pipeline's clock; the browser's live overlays record `currentLiveAt` / `airQuality.live` instead and never touch it. "Updated X ago" is the newest pipeline timestamp across all files (the watchdog's rule).
+- **Unavailable ≠ clear.** Loaders return `null` when a file can't be loaded. Tiles then say "No data", the status level becomes **Unconfirmed** (grey) instead of "All clear", and the status line names what is missing.
+- **Reasons, not just colours.** The status line lists why (e.g. "Wildfire 55 km N · 6 minor road notices"); the level is a word + symbol + colour.
+- **Guidance only from data.** "What this means for you" tips appear only when current data triggers them, state the trigger, and link to official advice. The travel note never calls a route safe.
+
 ## Security posture
 
 - **No backend at all.** The published site is read-only static files — there are no endpoints to abuse, no forms, no database, no sessions. "Unusual HTTP requests" have nothing to hit.
@@ -68,6 +86,9 @@ Features that could not be automated (community incident reports, email subscrip
 - **Secret handling**: the 511 key lives in an encrypted Actions secret, masked in logs, used ~3 requests per run (every ~6 minutes) from GitHub's runners only.
 - **Browser hardening**: strict Content-Security-Policy via `<meta>` (GitHub Pages can't set HTTP headers), no inline scripts, Subresource Integrity on the Leaflet CDN files, `rel="noopener"` on external links, a JS frame-busting guard, `referrer` policy set.
 - **Workflow hardening**: least-privilege permissions (`contents: read` + Pages deploy), pinned major action versions, 10-minute timeout, concurrency lock.
+
+- **Untrusted data handling**: every value from a data file or API is escaped before it reaches `innerHTML`; the Prepare/Resources pages build DOM with `textContent` only; camera image URLs must be `https://www.manitoba511.ca`; incident severities are whitelisted. No `eval`/`new Function` (the CSP forbids it).
+- **Privacy**: no analytics, ads or trackers. Theme, checklist ticks and saved shortcuts live in the visitor's `localStorage` only.
 
 Known limitations of static hosting: real HTTP security headers (HSTS, X-Frame-Options) can't be customized on GitHub Pages, and `frame-ancestors` is ignored in meta CSP — the JS frame guard is the fallback. If you ever need those, put Cloudflare (free) in front of the Pages site.
 
@@ -102,17 +123,32 @@ If GitHub's scheduler drops too many firings for your taste, an external pinger 
 2. On [cron-job.org](https://cron-job.org) (free), create a job that runs every 5–10 minutes:
    - URL: `https://api.github.com/repos/<you>/citypulse/actions/workflows/deploy.yml/dispatches`
    - Method: `POST`, body: `{"ref":"main"}`
-   - Headers: `Authorization: Bearer <token>`, `Accept: application/vnd.github+json`
+   - Headers: `Accept: application/vnd.github+json`, `Content-Type: application/json`
+   - **HTTP authentication** (Advanced tab): username `<you>`, password `<token>`. Use this, not a
+     hand-written `Authorization: Bearer <token>` header — on cron-job.org that header returned
+     401 even though the identical value returned 204 from curl. GitHub accepts the token as a
+     basic-auth password. Success is HTTP **204** with an empty body.
 
 The workflow already accepts `workflow_dispatch`, so no code change is needed.
 
 ## Local development
 
 ```bash
-npm install
-node scripts/fetch-data.mjs      # fetch real data into data/ (weather + EC work without a key)
 npx serve .                      # any static server works; then open http://localhost:3000
 ```
+
+Running `node scripts/fetch-data.mjs` locally **overwrites the committed `data/*.json` with partial data** when no 511 key is set. If you do run it, restore with `git checkout -- data/` before committing.
+
+## Tests
+
+`tests/run.mjs` drives the real pages in headless Chromium with every data source mocked from `tests/fixtures/` — no network, no 511 key, nothing touches production:
+
+```bash
+cd tests && npm install && node run.mjs          # all checks
+node run.mjs stale                                # only scenarios whose name contains "stale"
+```
+
+It covers fresh/stale/missing/malformed data, live-API failure, offline cameras, failed Hazard Watch, a severe EC alert, empty incidents, dark mode, the theme toggle, mobile nav and horizontal overflow at 390 px, internal links and anchors on every page, checklist persistence, search, shortcuts, the skip link and reduced motion. Screenshots land in `tests/output/` (git-ignored). Chromium comes from `CHROME_PATH` or `~/.cache/ms-playwright` (`npx playwright install chromium`). `tests/` and `docs/` are pruned from the Pages artifact.
 
 To test the 511 sources locally (PowerShell):
 
@@ -125,18 +161,24 @@ node scripts/fetch-data.mjs
 
 ```
 citypulse/
-├── index.html / about.html
-├── css/style.css
+├── index.html / prepare.html / resources.html / about.html
+├── css/style.css              # One design system, light + dark tokens
 ├── js/
-│   ├── data.js               # CITY_CONFIG, WMO mapping, JSON loaders
-│   └── main.js               # Dashboard render: weather, alerts, incidents, conditions, cameras, map
+│   ├── theme.js               # Light/dark toggle (loaded in <head>)
+│   ├── data.js                # CITY_CONFIG, WMO mapping, JSON loaders, live overlays
+│   ├── content.js             # Resources, seasonal checklists, kits, FAQ (hand-maintained)
+│   ├── main.js                # Nav + dashboard render
+│   ├── prepare.js             # Prepare page
+│   └── resources.js           # Resources page
 ├── data/                      # Machine-written by the workflow (seed files committed)
 │   ├── weather.json
 │   ├── incidents.json
 │   ├── roads.json
 │   └── hazards.json           # Hazard Watch: air quality + wildfires + river
 ├── scripts/fetch-data.mjs     # All upstream fetching + filtering
-├── .github/workflows/deploy.yml
+├── tests/                     # Browser scenario tests (own package.json)
+├── docs/redesign-baseline.md  # Pre-redesign audit
+├── .github/workflows/deploy.yml / watchdog.yml
 └── package.json               # fast-xml-parser (EC alerts XML)
 ```
 
@@ -144,6 +186,11 @@ citypulse/
 
 1. **`js/data.js`** → `CITY_CONFIG.name`, `center`, `zoom`
 2. **`scripts/fetch-data.mjs`** → `CENTER`, radii, `NEARBY_KEYWORDS`/`NEARBY_HIGHWAYS`, `EC_SITE_CODE` (find yours at https://dd.weather.gc.ca/today/citypage_weather/MB/00/)
+
+## Known follow-ups
+
+- `npm audit` reports a moderate advisory in `fast-xml-parser` < 5.7 (GHSA-gh4j-gqv2-49f6). It affects `XMLBuilder` only; the pipeline uses `XMLParser`, so it is not exploitable here. Upgrading is a major version bump inside the pipeline — do it as its own change, verified with a real Actions run.
+- `about.html` still describes pipeline updates as "roughly every 1–2 hours". With the cron-job.org trigger it should be ~10 minutes; update the copy and lower the 4 h stale threshold once a day of real gaps has been measured.
 
 ## Data caveats
 
