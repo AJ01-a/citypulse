@@ -150,7 +150,7 @@ async function buildWeather() {
     `&current=temperature_2m,apparent_temperature,relative_humidity_2m,weather_code,wind_speed_10m,wind_gusts_10m,wind_direction_10m,is_day` +
     `&hourly=temperature_2m,precipitation_probability,weather_code` +
     `&daily=weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset,precipitation_sum,precipitation_probability_max,wind_speed_10m_max,uv_index_max` +
-    `&timezone=${encodeURIComponent(TZ)}&forecast_days=4`;
+    `&timezone=${encodeURIComponent(TZ)}&forecast_days=5`;
   const data = await fetchJson(url);
   await writeData("weather.json", {
     fetchedAt: Date.now(),

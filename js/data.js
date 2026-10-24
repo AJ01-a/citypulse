@@ -50,7 +50,9 @@ async function loadReports() {
 // Open-Meteo is keyless and CORS-enabled, so current conditions can come
 // straight from the source on every page view — always real-time, no matter
 // how long ago the Actions pipeline last ran. The baked weather.json stays
-// the source for daily/hourly forecast data and the fallback if this fails.
+// the source for hourly data and the fallback if this fails. Daily is
+// overlaid too: after midnight the baked daily[0] is yesterday, so a stale
+// pipeline would otherwise show yesterday's high/low as "Today".
 //
 // The overlay records its own timestamp in `currentLiveAt` and must NEVER
 // touch `fetchedAt`: `fetchedAt` is the *pipeline* clock that the rest of the
@@ -60,7 +62,8 @@ const LIVE_WEATHER_URL =
   'https://api.open-meteo.com/v1/forecast' +
   `?latitude=${CITY_CONFIG.center[0]}&longitude=${CITY_CONFIG.center[1]}` +
   '&current=temperature_2m,apparent_temperature,relative_humidity_2m,weather_code,wind_speed_10m,wind_gusts_10m,wind_direction_10m,is_day' +
-  '&timezone=America%2FWinnipeg';
+  '&daily=weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset,precipitation_probability_max,uv_index_max' +
+  '&forecast_days=4&timezone=America%2FWinnipeg';
 
 async function loadWeather() {
   let baked = null;
@@ -80,6 +83,7 @@ async function loadWeather() {
         baked.current = live.current;
         baked.currentLiveAt = Date.now();
       }
+      if (live && live.daily && live.daily.time?.length) baked.daily = live.daily;
     }
   } catch (e) {
     console.warn('live weather overlay failed, using baked data:', e);
@@ -214,9 +218,17 @@ function formatTime(iso) {
   return d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
 }
 
+// Open-Meteo daily dates are bare "YYYY-MM-DD". new Date() parses those as
+// UTC midnight, which west of UTC is the previous evening — every forecast
+// card was labelled one day early. Read it as a calendar date instead.
 function formatDayShort(iso) {
   if (!iso) return "";
-  return new Date(iso).toLocaleDateString([], { weekday: 'short' });
+  return new Date(iso + 'T00:00:00Z').toLocaleDateString([], { weekday: 'short', timeZone: 'UTC' });
+}
+
+// Today's calendar date in Neepawa ("YYYY-MM-DD"), regardless of viewer TZ.
+function localDateToday() {
+  return new Date().toLocaleDateString('en-CA', { timeZone: 'America/Winnipeg' });
 }
 
 function summarize(reports) {

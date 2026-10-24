@@ -55,19 +55,23 @@
     }
     const cur = w.current;
     const meta = wmoMeta(cur.weather_code, cur.is_day);
-    const todayHi = Math.round(w.daily.temperature_2m_max?.[0]);
-    const todayLo = Math.round(w.daily.temperature_2m_min?.[0]);
-    const sunrise = formatTime(w.daily.sunrise?.[0]);
-    const sunset  = formatTime(w.daily.sunset?.[0]);
+    // Skip days that are already over in Neepawa (baked data from before
+    // midnight still starts at yesterday). Falls back to 0 if nothing matches.
+    const days = w.daily.time || [];
+    const t = Math.max(0, days.findIndex(d => d >= localDateToday()));
+    const todayHi = Math.round(w.daily.temperature_2m_max?.[t]);
+    const todayLo = Math.round(w.daily.temperature_2m_min?.[t]);
+    const sunrise = formatTime(w.daily.sunrise?.[t]);
+    const sunset  = formatTime(w.daily.sunset?.[t]);
     const wind    = Math.round(cur.wind_speed_10m);
     const gust    = Math.round(cur.wind_gusts_10m);
     const feels   = Math.round(cur.apparent_temperature);
     const humid   = Math.round(cur.relative_humidity_2m);
-    const uvMax   = w.daily.uv_index_max?.[0];
-    const precip  = w.daily.precipitation_probability_max?.[0];
+    const uvMax   = w.daily.uv_index_max?.[t];
+    const precip  = w.daily.precipitation_probability_max?.[t];
 
-    const forecast = (w.daily.time || []).slice(1, 4).map((day, i) => {
-      const idx = i + 1;
+    const forecast = days.slice(t + 1, t + 4).map((day, i) => {
+      const idx = t + 1 + i;
       const m = wmoMeta(w.daily.weather_code[idx], 1);
       const hi = Math.round(w.daily.temperature_2m_max[idx]);
       const lo = Math.round(w.daily.temperature_2m_min[idx]);
