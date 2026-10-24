@@ -34,16 +34,22 @@ function fresh(url) {
   return url + '?t=' + Date.now();
 }
 
+// Loaders return null when their file can't be loaded — never an empty
+// result. "We couldn't check" must stay distinguishable from "nothing to
+// report", or a failed load renders as "All clear".
 async function loadReports() {
   try {
     const res = await fetch(fresh(REPORTS_URL), { cache: 'no-store' });
     if (!res.ok) throw new Error('fetch failed: ' + res.status);
     const data = await res.json();
     const list = Array.isArray(data) ? data : (data.incidents || []);
-    return list.sort((a, b) => b.createdAt - a.createdAt);
+    return {
+      fetchedAt: Array.isArray(data) ? null : (data.fetchedAt ?? null),
+      items: list.sort((a, b) => b.createdAt - a.createdAt),
+    };
   } catch (e) {
-    console.warn('loadReports failed, returning empty list:', e);
-    return [];
+    console.warn('loadReports failed:', e);
+    return null;
   }
 }
 
@@ -142,6 +148,7 @@ async function loadHazards() {
           usAqi: cur.us_aqi ?? null,
           aqhi,
           category: aqhiCategory(aqhi),
+          live: true,
         };
       }
     }
@@ -158,7 +165,7 @@ async function loadRoads() {
     return await res.json();
   } catch (e) {
     console.warn('loadRoads failed:', e);
-    return { conditions: [], cameras: [] };
+    return null;
   }
 }
 
@@ -229,6 +236,28 @@ function formatDayShort(iso) {
 // Today's calendar date in Neepawa ("YYYY-MM-DD"), regardless of viewer TZ.
 function localDateToday() {
   return new Date().toLocaleDateString('en-CA', { timeZone: 'America/Winnipeg' });
+}
+
+// The pipeline cuts descriptions at 280 chars, often mid-word. Show that
+// honestly with an ellipsis at the last word boundary.
+function tidyDescription(s) {
+  s = String(s || '');
+  if (s.length < 280) return s;
+  const cut = s.slice(0, 277);
+  return cut.slice(0, cut.lastIndexOf(' ') > 200 ? cut.lastIndexOf(' ') : 277).replace(/[\s,.;:]+$/, '') + '…';
+}
+
+// When the pipeline last published anything: the newest timestamp it wrote.
+// Mirrors the watchdog's rule. airQuality is excluded because the browser's
+// live overlay stamps it with Date.now(), and weather's currentLiveAt is a
+// separate field for the same reason (see loadWeather).
+function pipelineTimestamp(weather, reports, roads, hazards) {
+  const stamps = [
+    weather?.fetchedAt, reports?.fetchedAt,
+    roads?.camerasFetchedAt, roads?.conditionsFetchedAt,
+    hazards?.wildfires?.fetchedAt, hazards?.river?.fetchedAt,
+  ].filter(t => typeof t === 'number');
+  return stamps.length ? Math.max(...stamps) : null;
 }
 
 function summarize(reports) {

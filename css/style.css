@@ -111,8 +111,10 @@ h4 { font-size: .75rem; text-transform: uppercase; letter-spacing: .1em; color: 
   display: block; width: 14px; height: 14px; border-radius: 50%;
   background: var(--ok);
 }
+.status-banner.unknown { border-left-color: var(--faint); }
 .status-banner.warn .status-dot { background: var(--warn); }
 .status-banner.bad .status-dot { background: var(--bad); }
+.status-banner.unknown .status-dot { background: var(--faint); }
 .status-label { font-size: .72rem; text-transform: uppercase; letter-spacing: .15em; color: var(--faint); margin: 0; }
 .status-meta h1 { margin-top: .15rem; font-size: 1.6rem; }
 .status-summary { text-align: right; }
@@ -193,6 +195,8 @@ h4 { font-size: .75rem; text-transform: uppercase; letter-spacing: .1em; color: 
 }
 .empty-state .big { font-size: 2.25rem; margin-bottom: .5rem; color: var(--ok-text); }
 .empty-state.compact { padding: 1.25rem 1rem; font-size: .9rem; }
+.empty-state.error { border-style: solid; border-color: #f0c886; background: #fff8ec; color: #6b3d05; }
+.empty-state.error a { color: #6b3d05; text-decoration: underline; }
 
 /* Source badges */
 .src-badge {

@@ -132,6 +132,14 @@
   // ----- Road conditions (Manitoba 511) -----
   function renderConditions(roads) {
     if (!condRoot) return;
+    if (!roads) {
+      condRoot.innerHTML = `
+        <li class="empty-state compact error">
+          <p>Couldn't load road conditions. Check <a href="https://www.manitoba511.ca" target="_blank" rel="noopener">Manitoba 511</a> directly.</p>
+        </li>`;
+      if (condUpdated) condUpdated.textContent = '';
+      return;
+    }
     const segments = roads.conditions || [];
     if (segments.length === 0) {
       condRoot.innerHTML = `
@@ -167,7 +175,7 @@
   let camerasKey = null;
   function renderCameras(roads) {
     if (!camRoot || !camSection) return;
-    const cams = roads.cameras || [];
+    const cams = (roads && roads.cameras) || [];
     if (cams.length === 0) {
       camSection.hidden = true;
       return;
@@ -208,30 +216,76 @@
   }
 
   // ----- Hazard Watch (air quality, wildfires, river) -----
-  function bump(worst, level) {
-    const rank = { ok: 0, warn: 1, bad: 2 };
-    return rank[level] > rank[worst] ? level : worst;
+  // ----- Overall status: what's wrong, and why -----
+  // Every input contributes a reason with a level ('bad' | 'warn' | 'info'),
+  // and every input that failed to load is listed as unavailable. The banner
+  // shows the reasons themselves, so the level is never unexplained, and a
+  // missing input can never be summarized as "All clear". Thresholds are
+  // unchanged from the previous banner logic.
+  function plural(n, word) { return `${n} ${word}${n === 1 ? '' : 's'}`; }
+
+  function statusReasons(reports, roads, hazards, weather) {
+    const reasons = [];
+    const unavailable = [];
+
+    if (!reports) {
+      unavailable.push('alerts & road incidents');
+    } else {
+      const items = reports.items;
+      const ec = items.filter(r => r.type === 'weather');
+      if (ec.some(r => r.severity === 'major')) reasons.push({ level: 'bad', text: 'Weather warning in effect' });
+      else if (ec.some(r => r.severity === 'moderate')) reasons.push({ level: 'warn', text: 'Weather watch in effect' });
+      else if (ec.length) reasons.push({ level: 'info', text: plural(ec.length, 'weather statement') });
+      const road = items.filter(r => r.type === 'road');
+      const major = road.filter(r => r.severity === 'major').length;
+      const moderate = road.filter(r => r.severity === 'moderate').length;
+      const minor = road.length - major - moderate;
+      if (major) reasons.push({ level: 'bad', text: plural(major, 'major road event') });
+      if (moderate) reasons.push({ level: 'warn', text: plural(moderate, 'road event') + ' to watch' });
+      if (minor) reasons.push({ level: 'info', text: plural(minor, 'minor road notice') });
+    }
+
+    if (!roads) {
+      unavailable.push('road conditions');
+    } else {
+      const lvl = worstConditionLevel(roads.conditions || []);
+      if (lvl === 'closed') reasons.push({ level: 'bad', text: 'Highway closed or travel not recommended' });
+      else if (lvl === 'poor') reasons.push({ level: 'bad', text: 'Poor driving conditions' });
+      else if (lvl === 'fair') reasons.push({ level: 'warn', text: 'Use caution on area highways' });
+    }
+
+    const aq = hazards.airQuality, wf = hazards.wildfires, rv = hazards.river;
+    if (!aq && !wf && !rv) {
+      unavailable.push('Hazard Watch');
+    } else {
+      if (!aq) unavailable.push('air quality');
+      else if (aq.category === 'High' || aq.category === 'Very high') reasons.push({ level: 'bad', text: `Air quality ${aq.category.toLowerCase()} (AQHI ${aq.aqhi > 10 ? '10+' : aq.aqhi})` });
+      else if (aq.category === 'Moderate') reasons.push({ level: 'warn', text: `Air quality moderate (AQHI ${aq.aqhi})` });
+      if (!wf) unavailable.push('wildfires');
+      else if (wf.nearestKm != null && wf.nearestKm <= 100) {
+        reasons.push({ level: wf.nearestKm <= 30 ? 'bad' : 'warn', text: `Wildfire ${wf.nearestKm} km ${wf.nearestDirection}` });
+      }
+      if (!rv) unavailable.push('river');
+      else if (typeof rv.trend6h === 'number' && rv.trend6h >= 0.15) {
+        reasons.push({ level: rv.trend6h >= 0.4 ? 'bad' : 'warn', text: rv.trend6h >= 0.4 ? 'Whitemud River rising fast' : 'Whitemud River rising' });
+      }
+    }
+
+    if (!weather) unavailable.push('weather');
+
+    const rank = { bad: 0, warn: 1, info: 2 };
+    reasons.sort((a, b) => rank[a.level] - rank[b.level]);
+    let level = reasons.some(r => r.level === 'bad') ? 'bad'
+      : reasons.some(r => r.level === 'warn') ? 'warn' : 'ok';
+    if (level === 'ok' && unavailable.length) level = 'unknown';
+    return { level, reasons, unavailable };
   }
 
-  // Overall hazard level: 'ok' | 'warn' | 'bad' — feeds the status banner.
-  function hazardSeverity(h) {
-    let worst = 'ok';
-    const aq = h.airQuality;
-    if (aq) {
-      if (aq.category === 'High' || aq.category === 'Very high') worst = bump(worst, 'bad');
-      else if (aq.category === 'Moderate') worst = bump(worst, 'warn');
-    }
-    const wf = h.wildfires;
-    if (wf && wf.nearestKm != null) {
-      if (wf.nearestKm <= 30) worst = bump(worst, 'bad');
-      else if (wf.nearestKm <= 100) worst = bump(worst, 'warn');
-    }
-    const rv = h.river;
-    if (rv && typeof rv.trend6h === 'number') {
-      if (rv.trend6h >= 0.4) worst = bump(worst, 'bad');
-      else if (rv.trend6h >= 0.15) worst = bump(worst, 'warn');
-    }
-    return worst;
+  function statusSentence({ reasons, unavailable }) {
+    const parts = reasons.slice(0, 3).map(r => r.text);
+    if (reasons.length > 3) parts.push(`+${reasons.length - 3} more`);
+    if (unavailable.length) parts.push(`${capitalize(unavailable.join(', '))} unavailable`);
+    return parts.length ? parts.join(' · ') : 'All clear';
   }
 
   function renderHazards(h) {
@@ -316,25 +370,43 @@
   // in the status line regardless, so nothing is hidden between refreshes.
   const PIPELINE_STALE_MS = 4 * 60 * 60 * 1000;
 
-  function renderStaleNotice(pipelineTs) {
+  // `live` says which parts really came from the browser's live calls this
+  // time, so the banner only claims "still live" for what actually is.
+  let liveState = { weather: false, air: false };
+  const OFFICIAL_LINKS =
+    'Check <a href="https://www.manitoba511.ca" target="_blank" rel="noopener">Manitoba 511</a> and ' +
+    '<a href="https://weather.gc.ca" target="_blank" rel="noopener">Environment Canada</a> directly before travelling.';
+
+  function renderStaleNotice(pipelineTs, live) {
     if (!staleWrap || !staleBanner) return;
-    if (!pipelineTs || Date.now() - pipelineTs < PIPELINE_STALE_MS) {
+    if (pipelineTs === null) {
+      staleWrap.hidden = false;
+      staleBanner.innerHTML =
+        '<span class="stale-ico">\u26a0</span>' +
+        '<div><strong>Couldn\u2019t load the latest alerts, road and hazard data.</strong>' +
+        '<span class="stale-meta">This page can\u2019t confirm current conditions right now. ' + OFFICIAL_LINKS + '</span></div>';
+      return;
+    }
+    if (Date.now() - pipelineTs < PIPELINE_STALE_MS) {
       staleWrap.hidden = true;
       return;
     }
+    const liveNote =
+      live.weather && live.air ? 'Weather and air quality below are still live. ' :
+      live.weather ? 'Current weather below is still live. ' :
+      live.air ? 'Air quality below is still live. ' : '';
     staleWrap.hidden = false;
     staleBanner.innerHTML =
       '<span class="stale-ico">\u23f3</span>' +
       '<div><strong>Alerts, road conditions and cameras were last updated ' + escapeHtml(relativeTime(pipelineTs)) +
       ' \u2014 the automatic update pipeline looks stalled.</strong>' +
-      '<span class="stale-meta">Weather and air quality below are still live. ' +
-      'Check <a href="https://www.manitoba511.ca" target="_blank" rel="noopener">Manitoba 511</a> and ' +
-      '<a href="https://weather.gc.ca" target="_blank" rel="noopener">Environment Canada</a> directly before travelling.</span></div>';
+      '<span class="stale-meta">' + liveNote + OFFICIAL_LINKS + '</span></div>';
   }
 
   // ----- Main render -----
   async function render() {
-    const [reports, weather, roads, hazards] = await Promise.all([loadReports(), loadWeather(), loadRoads(), loadHazards()]);
+    const [reportData, weather, roads, hazards] = await Promise.all([loadReports(), loadWeather(), loadRoads(), loadHazards()]);
+    const reports = reportData ? reportData.items : [];
     const summary = summarize(reports);
 
     renderWeather(weather);
@@ -343,56 +415,52 @@
     renderCameras(roads);
     renderHazards(hazards);
 
-    const condLevel = worstConditionLevel(roads.conditions || []);
+    const condLevel = worstConditionLevel((roads && roads.conditions) || []);
     const condMeta = CONDITION_META[condLevel] || CONDITION_META.unknown;
 
-    // Overall banner: worst of incidents + driving conditions + hazards
-    banner.classList.remove('warn', 'bad');
-    let worst = summary.worst;
-    if (condLevel === 'closed' || condLevel === 'poor') worst = 'bad';
-    else if (condLevel === 'fair' && worst === 'ok') worst = 'warn';
-    worst = bump(worst, hazardSeverity(hazards));
-    if (worst === 'warn') banner.classList.add('warn');
-    if (worst === 'bad') banner.classList.add('bad');
-    statusText.textContent =
-      worst === 'bad' ? "Major disruptions — check alerts below" :
-      worst === 'warn' && summary.total > 0 ? `Some disruptions — ${summary.total} active` :
-      worst === 'warn' ? "Use caution on area highways" :
-      summary.total === 0 ? "All clear" :
-      `${summary.total} minor item${summary.total === 1 ? '' : 's'}`;
-    // weather.fetchedAt is the pipeline clock (every data file is written by
-    // the same run), NOT the browser-side live weather overlay — see data.js.
-    dataTimestamp = weather?.fetchedAt || null;
-    lastUpdate.textContent = dataTimestamp ? relativeTime(dataTimestamp) : "just now";
-    renderStaleNotice(dataTimestamp);
+    // Overall banner: worst of incidents + driving conditions + hazards,
+    // with the reasons spelled out and unavailable inputs named.
+    const status = statusReasons(reportData, roads, hazards, weather);
+    banner.classList.remove('warn', 'bad', 'unknown');
+    if (status.level !== 'ok') banner.classList.add(status.level);
+    statusText.textContent = statusSentence(status);
 
-    // Status tiles
+    // The pipeline clock: newest timestamp any data file carries. Never the
+    // browser-side live overlays (currentLiveAt / live air quality).
+    dataTimestamp = pipelineTimestamp(weather, reportData, roads, hazards);
+    lastUpdate.textContent = dataTimestamp ? relativeTime(dataTimestamp) : 'unknown';
+    liveState = { weather: !!weather?.currentLiveAt, air: !!hazards.airQuality?.live };
+    renderStaleNotice(dataTimestamp, liveState);
+
+    // Status tiles. A file that failed to load shows "No data", never "Clear".
+    const noData = (icon, label, meta) => ({ icon, label, value: '—', meta, cls: 'muted', badge: 'No data', isText: true });
+    const cams = (roads && roads.cameras) || [];
     const tiles = [
-      {
+      reportData ? {
         icon: '🌩', label: 'Weather alerts', value: summary.counts.weather || 0,
         meta: summary.counts.weather ? 'Environment Canada' : 'No active alerts',
         cls: summary.counts.weather ? 'warn' : 'ok',
         badge: summary.counts.weather ? 'Active' : 'Clear',
-      },
-      {
+      } : noData('🌩', 'Weather alerts', 'Couldn’t load alerts'),
+      reportData ? {
         icon: '🚧', label: 'Road incidents', value: summary.counts.road || 0,
         meta: summary.counts.road ? 'Closures & events within 60 km' : 'No closures within 60 km',
         cls: summary.counts.road >= 3 ? 'bad' : (summary.counts.road ? 'warn' : 'ok'),
         badge: summary.counts.road ? 'Active' : 'Clear',
-      },
-      {
+      } : noData('🚧', 'Road incidents', 'Couldn’t load road events'),
+      roads ? {
         icon: '🛣', label: 'Driving conditions', value: condMeta.badge,
         meta: (roads.conditions || []).length
           ? `${roads.conditions.length} highway segment${roads.conditions.length === 1 ? '' : 's'} reporting`
           : 'Seasonal — reported in winter',
         cls: condMeta.cls === 'muted' ? 'ok' : condMeta.cls,
         badge: condMeta.badge, isText: true,
-      },
-      {
-        icon: '📷', label: 'Highway cameras', value: (roads.cameras || []).length,
-        meta: (roads.cameras || []).length ? 'Live views nearby' : 'None in range',
-        cls: 'ok', badge: 'Live',
-      },
+      } : noData('🛣', 'Driving conditions', 'Couldn’t load road conditions'),
+      roads ? {
+        icon: '📷', label: 'Highway cameras', value: cams.length,
+        meta: cams.length ? 'Live views nearby' : 'None in range',
+        cls: cams.length ? 'ok' : 'muted', badge: cams.length ? 'Live' : 'None',
+      } : noData('📷', 'Highway cameras', 'Couldn’t load cameras'),
     ];
     cardsRoot.innerHTML = tiles.map(t => `
       <div class="status-card">
@@ -407,7 +475,14 @@
 
     // Incidents list (filtered)
     const filtered = activeFilter === 'all' ? reports : reports.filter(r => r.type === activeFilter);
-    if (filtered.length === 0) {
+    if (!reportData) {
+      listRoot.innerHTML = `
+        <li class="empty-state error">
+          <p>Couldn't load alerts and road incidents. Check
+          <a href="https://www.manitoba511.ca" target="_blank" rel="noopener">Manitoba 511</a> and
+          <a href="https://weather.gc.ca" target="_blank" rel="noopener">Environment Canada</a> directly.</p>
+        </li>`;
+    } else if (filtered.length === 0) {
       listRoot.innerHTML = `
         <li class="empty-state">
           <div class="big">✓</div>
@@ -422,7 +497,7 @@
             <div class="icon-wrap">${meta.icon}</div>
             <div class="info">
               <h3>${escapeHtml(r.area)} <span class="src-badge verified">✓ ${srcLabel}</span></h3>
-              <p>${escapeHtml(r.description)}</p>
+              <p>${escapeHtml(tidyDescription(r.description))}</p>
               <div class="meta">
                 <span>${capitalize(r.severity)}</span>
                 <span>${meta.label}</span>
@@ -433,7 +508,7 @@
       }).join('');
     }
 
-    renderMap(filtered, roads.cameras || [], hazards);
+    renderMap(filtered, cams, hazards);
   }
 
   // Filters
@@ -525,7 +600,7 @@
   setInterval(() => {
     if (dataTimestamp) {
       lastUpdate.textContent = relativeTime(dataTimestamp);
-      renderStaleNotice(dataTimestamp);
+      renderStaleNotice(dataTimestamp, liveState);
     }
   }, 30000);
 
