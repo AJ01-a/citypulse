@@ -68,6 +68,7 @@ const LIVE_WEATHER_URL =
   'https://api.open-meteo.com/v1/forecast' +
   `?latitude=${CITY_CONFIG.center[0]}&longitude=${CITY_CONFIG.center[1]}` +
   '&current=temperature_2m,apparent_temperature,relative_humidity_2m,weather_code,wind_speed_10m,wind_gusts_10m,wind_direction_10m,is_day' +
+  '&hourly=temperature_2m,precipitation_probability,weather_code&forecast_hours=13' +
   '&daily=weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset,precipitation_probability_max,uv_index_max' +
   '&forecast_days=4&timezone=America%2FWinnipeg';
 
@@ -90,6 +91,10 @@ async function loadWeather() {
         baked.currentLiveAt = Date.now();
       }
       if (live && live.daily && live.daily.time?.length) baked.daily = live.daily;
+      if (live && live.hourly && live.hourly.time?.length) {
+        baked.hourly = live.hourly;
+        baked.hourlyLive = true;
+      }
     }
   } catch (e) {
     console.warn('live weather overlay failed, using baked data:', e);
@@ -217,6 +222,36 @@ function relativeTime(ts) {
   const h = Math.floor(m / 60);
   if (h < 24) return h + "h ago";
   return Math.floor(h / 24) + "d ago";
+}
+
+// Full local date/time for tooltips, so a relative age can be checked.
+function absoluteTime(ts) {
+  if (!ts) return '';
+  return new Date(ts).toLocaleString('en-CA', {
+    timeZone: 'America/Winnipeg', weekday: 'short', month: 'short', day: 'numeric',
+    hour: 'numeric', minute: '2-digit', timeZoneName: 'short',
+  });
+}
+
+// Only allow https URLs on known hosts into src/href attributes built from
+// feed data. Returns null for anything else.
+function safeUrl(url, hosts) {
+  try {
+    const u = new URL(url);
+    if (u.protocol !== 'https:') return null;
+    if (hosts && !hosts.includes(u.hostname)) return null;
+    return u.href;
+  } catch {
+    return null;
+  }
+}
+
+// Current local hour in Neepawa as "YYYY-MM-DDTHH:00" (Open-Meteo's format).
+function localHourKey(date = new Date()) {
+  const p = Object.fromEntries(new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Winnipeg', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', hourCycle: 'h23',
+  }).formatToParts(date).map(x => [x.type, x.value]));
+  return `${p.year}-${p.month}-${p.day}T${p.hour}:00`;
 }
 
 function formatTime(iso) {

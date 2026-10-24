@@ -81,13 +81,16 @@ const SEVERE = {
 // The fixture hazards contain a wildfire zone 55 km N and only *minor* road
 // items, so the overall "caution" comes from the fire, not the roads.
 const check = (cond, msg) => (cond ? [] : [msg]);
+// Fixture times are set when the run starts and the suite takes a few
+// minutes, so "5m ago" may read 5-9m by the time a scenario runs.
+const minsAgo = (s, n) => new RegExp(`\\b(${[0, 1, 2, 3, 4].map(k => n + k).join("|")})m ago`).test(s || "");
 const notAllClear = o => check(!/all clear/i.test(o.statusText), `status must not say "All clear" when data is missing (got "${o.statusText}")`);
 
 const scenarios = {
   "fresh": {
     data: pipelineData(),
     expect: o => [
-      ...check(o.lastUpdate === "5m ago", `lastUpdate should be "5m ago", got "${o.lastUpdate}"`),
+      ...check(minsAgo(o.lastUpdate, 5), `lastUpdate should be ~"5m ago", got "${o.lastUpdate}"`),
       ...check(!o.staleBanner, "stale banner should be hidden"),
       ...check(o.bannerLevel === "warn", `banner should be warn (wildfire 55 km), got ${o.bannerLevel}`),
       ...check(/wildfire/i.test(o.statusText), `status should name the wildfire as the reason, got "${o.statusText}"`),
@@ -110,7 +113,7 @@ const scenarios = {
     data: { ...pipelineData(), weather: 404 },
     expect: o => [
       ...check(/unavailable/i.test(o.weather), "weather card should say unavailable"),
-      ...check(o.lastUpdate === "5m ago", `other files are 5m old, so lastUpdate should be "5m ago", got "${o.lastUpdate}"`),
+      ...check(minsAgo(o.lastUpdate, 5), `other files are 5m old, so lastUpdate should be ~"5m ago", got "${o.lastUpdate}"`),
     ],
   },
   "invalid-incidents-json": {
@@ -132,7 +135,10 @@ const scenarios = {
   },
   "weather-api-down": {
     data: pipelineData(), live: "fail",
-    expect: o => check(/5m ago/.test(o.weatherFooter || ""), `weather footer should admit baked data age, got "${o.weatherFooter}"`),
+    expect: o => [
+      ...check(minsAgo(o.weatherFooter, 5), `weather footer should admit baked data age, got "${o.weatherFooter}"`),
+      ...check(/last automatic update/i.test(o.weatherFooter || ""), "weather footer should say it is not live"),
+    ],
   },
   "weather-api-down+stale": {
     data: pipelineData(5 * HOUR), live: "fail",
@@ -214,6 +220,11 @@ async function run(browser, name, sc, vpName, viewport) {
   const page = await ctx.newPage();
   const errors = [];
   page.on("pageerror", e => errors.push("pageerror: " + e.message));
+  // Any missing local asset (css/js/img/page) is a failure; data/ is mocked.
+  page.on("response", r => {
+    const u = new URL(r.url());
+    if (u.origin === BASE && !u.pathname.includes("/data/") && r.status() >= 400) errors.push(`pageerror: ${u.pathname} -> ${r.status()}`);
+  });
 
   await page.route("**/data/*.json*", route => {
     const key = new URL(route.request().url()).pathname.split("/").pop().replace(".json", "");
@@ -296,10 +307,127 @@ async function run(browser, name, sc, vpName, viewport) {
   return o;
 }
 
+// ---- Page-level checks (not tied to a data scenario) ----
+// Returns [name, problems[]] pairs.
+async function pageChecks(browser) {
+  const out = [];
+  const fresh = pipelineData();
+  const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 }, timezoneId: "America/Winnipeg" });
+  const page = await ctx.newPage();
+  const errors = [];
+  page.on("pageerror", e => errors.push(e.message));
+  page.on("response", r => {
+    const u = new URL(r.url());
+    if (u.origin === BASE && !u.pathname.includes("/data/") && r.status() >= 400) errors.push(`${u.pathname} -> ${r.status()}`);
+  });
+  await page.route("**/data/*.json*", route => {
+    const key = new URL(route.request().url()).pathname.split("/").pop().replace(".json", "");
+    return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(fresh[key]) });
+  });
+  await page.route("https://api.open-meteo.com/**", r => r.fulfill({ json: base.om }));
+  await page.route("https://air-quality-api.open-meteo.com/**", r => r.fulfill({ json: base.aq }));
+  await page.route("https://www.manitoba511.ca/**", r => r.fulfill({ status: 200, contentType: "image/svg+xml", body: CAM_IMG }));
+  await page.route("https://*.tile.openstreetmap.org/**", r => r.fulfill({ status: 200, contentType: "image/png", body: Buffer.alloc(0) }));
+  await page.route(/fonts\.(googleapis|gstatic)\.com/, r => r.fulfill({ status: 200, contentType: "text/css", body: "" }));
+
+  // Every internal link and in-page anchor on every page resolves.
+  for (const p of ["index.html", "prepare.html", "resources.html", "about.html"]) {
+    const problems = [];
+    await page.goto(`${BASE}/${p}`, { waitUntil: "load" });
+    await page.waitForTimeout(p === "index.html" ? 1500 : 300);
+    const hrefs = await page.evaluate(() => [...document.querySelectorAll("a[href]")].map(a => a.getAttribute("href")));
+    for (const h of new Set(hrefs)) {
+      if (/^(https?:|tel:|mailto:)/.test(h)) continue;
+      const [file, hash] = h.split("#");
+      if (file) {
+        const res = await page.request.get(`${BASE}/${file.split("?")[0]}`);
+        if (!res.ok()) problems.push(`broken link ${h}`);
+      } else if (hash && !(await page.evaluate(id => !!document.getElementById(id), hash))) {
+        problems.push(`missing anchor #${hash}`);
+      }
+    }
+    const extNoRel = await page.evaluate(() => [...document.querySelectorAll('a[target="_blank"]')].filter(a => !/noopener/.test(a.rel)).length);
+    if (extNoRel) problems.push(`${extNoRel} target=_blank links without rel=noopener`);
+    if (!(await page.locator("main#main h1").count())) problems.push("no h1 inside main");
+    await page.screenshot({ path: path.join(OUT, `page-${p.replace(".html", "")}.png`), fullPage: true });
+    out.push([`page ${p}`, problems]);
+  }
+
+  // Prepare: current season tab selected, ticks persist across reload.
+  {
+    const problems = [];
+    await page.goto(`${BASE}/prepare.html`, { waitUntil: "load" });
+    const sel = await page.locator('.season-tab[aria-selected="true"]').count();
+    if (sel !== 1) problems.push(`expected 1 selected season tab, got ${sel}`);
+    const first = page.locator(".season-panel:not([hidden]) .checklist input").first();
+    await first.check();
+    await page.reload({ waitUntil: "load" });
+    if (!(await page.locator(".season-panel:not([hidden]) .checklist input").first().isChecked())) problems.push("checklist tick not saved");
+    await page.click("#resetBtn");
+    await page.locator(".season-tab").nth(1).focus();
+    await page.keyboard.press("ArrowRight");
+    if ((await page.locator('.season-tab[aria-selected="true"]').count()) !== 1) problems.push("arrow-key tab switching broken");
+    if ((await page.locator(".season-panel:not([hidden])").count()) !== 1) problems.push("more than one season panel visible");
+    out.push(["prepare checklists", problems]);
+  }
+
+  // Resources: search filters, star saves a shortcut that shows on the dashboard.
+  {
+    const problems = [];
+    await page.goto(`${BASE}/resources.html`, { waitUntil: "load" });
+    const total = await page.locator(".res-item").count();
+    await page.fill("#resSearch", "snow");
+    const visible = await page.locator(".res-item:visible").count();
+    if (!(visible > 0 && visible < total)) problems.push(`search "snow" should narrow results (${visible}/${total})`);
+    await page.fill("#resSearch", "<img src=x onerror=alert(1)>");
+    if (await page.locator("#searchStatus img").count()) problems.push("search status rendered HTML from input");
+    await page.fill("#resSearch", "");
+    await page.locator('.res-item:has-text("Garbage") .star').click();
+    await page.goto(`${BASE}/index.html`, { waitUntil: "load" });
+    await page.waitForTimeout(800);
+    if (!(await page.locator('#shortcuts .res-link:has-text("Garbage")').count())) problems.push("saved shortcut not shown on dashboard");
+    out.push(["resources search & shortcuts", problems]);
+  }
+
+  // Keyboard: first Tab lands on the visible skip link.
+  {
+    const problems = [];
+    await page.goto(`${BASE}/index.html`, { waitUntil: "load" });
+    await page.keyboard.press("Tab");
+    const skip = await page.evaluate(() => {
+      const a = document.activeElement;
+      return a && a.classList.contains("skip-link") && a.getBoundingClientRect().top >= 0;
+    });
+    if (!skip) problems.push("first Tab should focus a visible skip link");
+    out.push(["keyboard skip link", problems]);
+  }
+  out.push(["no JS errors / missing assets on pages", errors]);
+  await ctx.close();
+
+  // Reduced motion: the pulse animation stops.
+  {
+    const rctx = await browser.newContext({ reducedMotion: "reduce" });
+    const p = await rctx.newPage();
+    await p.route("**/data/*.json*", r => r.fulfill({ status: 404, body: "" }));
+    await p.route(/^https:\/\/(?!127)/, r => r.abort());
+    await p.goto(`${BASE}/about.html`, { waitUntil: "load" });
+    const anim = await p.evaluate(() => getComputedStyle(document.querySelector(".pulse-dot")).animationName);
+    out.push(["reduced motion", anim === "none" ? [] : [`pulse animation still "${anim}"`]]);
+    await rctx.close();
+  }
+  return out;
+}
+
 await mkdir(OUT, { recursive: true });
 const browser = await chromium.launch({ executablePath: await findChrome() });
 const results = {};
 let failed = 0, passed = 0;
+if (!only || only === "pages") {
+  for (const [name, problems] of await pageChecks(browser)) {
+    if (problems.length) { failed++; console.log(`FAIL ${name}`); problems.forEach(p => console.log(`     - ${p}`)); }
+    else { passed++; console.log(`pass ${name}`); }
+  }
+}
 for (const [name, sc] of Object.entries(scenarios)) {
   if (only && !name.includes(only)) continue;
   for (const [vpName, viewport] of [["desktop", { width: 1280, height: 900 }], ["mobile", { width: 390, height: 844 }]]) {

@@ -29,16 +29,18 @@
 <body>
   <a class="skip-link" href="#main">Skip to main content</a>
   <header class="site-header">
-    <nav class="nav container">
+    <nav class="nav container" aria-label="Main">
       <a href="index.html" class="brand">
-        <span class="pulse-dot"></span>
+        <span class="pulse-dot" aria-hidden="true"></span>
         <span>City<strong>Pulse</strong></span>
         <span class="brand-loc">Neepawa</span>
       </a>
       <div class="nav-right">
         <ul class="nav-links">
           <li><a href="index.html">Dashboard</a></li>
-          <li><a href="about.html" class="active">About</a></li>
+          <li><a href="prepare.html">Prepare</a></li>
+          <li><a href="resources.html">Resources</a></li>
+          <li><a href="about.html" class="active" aria-current="page">About</a></li>
         </ul>
         <button class="theme-toggle" type="button" aria-pressed="false">
           <span class="sr-only">Dark theme</span>
@@ -65,7 +67,7 @@
     <div class="prose">
       <h2>What updates automatically</h2>
       <ul>
-        <li><strong>Current weather &amp; 4-day forecast</strong> — <a href="https://open-meteo.com" target="_blank" rel="noopener">Open-Meteo</a>, for Neepawa's exact coordinates. Current conditions are fetched live while the page is open; the forecast refreshes roughly every 1&ndash;2 hours.</li>
+        <li><strong>Current weather, next 12 hours &amp; 3-day forecast</strong> — <a href="https://open-meteo.com" target="_blank" rel="noopener">Open-Meteo</a>, for Neepawa's exact coordinates. Fetched live while the page is open; if that fails, the page shows the last automatic update and says so.</li>
         <li><strong>Severe weather alerts</strong> — Environment Canada (Brandon forecast region, the closest coverage to Neepawa). Rechecked roughly every 1&ndash;2 hours; official alerts appear as a red banner.</li>
         <li><strong>Road closures &amp; traffic events</strong> — <a href="https://www.manitoba511.ca" target="_blank" rel="noopener">Manitoba 511</a>, filtered to within 60&nbsp;km of Neepawa. Rechecked roughly every 1&ndash;2 hours.</li>
         <li><strong>Highway driving conditions</strong> — Manitoba 511 winter road condition reports for highways around Neepawa (PTH&nbsp;16, PTH&nbsp;5, Hwy&nbsp;1 and area). Rechecked roughly every 1&ndash;2 hours; mainly published in winter.</li>
@@ -82,8 +84,19 @@
         <li>Road conditions are seasonal — Manitoba 511 reports them mainly from fall to spring.</li>
         <li>The AQHI shown is computed from the latest modelled concentrations (the official index uses 3-hour station averages) — treat it as a close estimate.</li>
         <li>Wildfire zones are satellite heat detections, not official incident reports; small or new fires can be missed, and rare false positives (e.g. industrial heat) can appear.</li>
-        <li>River trend is measured at the Keyes gauge ~26 km downstream of Neepawa; town-level flooding can differ. For official flood forecasts see the <a href="https://www.gov.mb.ca/mit/floodinfo/" target="_blank" rel="noopener">Manitoba Hydrologic Forecast Centre</a>.</li>
+        <li>River trend is measured at the Keyes gauge ~26 km downstream of Neepawa; town-level flooding can differ. For official flood forecasts see the <a href="https://www.manitoba.ca/floodinfo/" target="_blank" rel="noopener">Manitoba flood information</a>.</li>
       </ul>
+
+      <h2>How to read freshness</h2>
+      <ul>
+        <li><strong>Live</strong> — weather and air quality fetched by your browser from Open-Meteo when the page loads (and every minute while it stays open).</li>
+        <li><strong>Updated X ago</strong> — alerts, road information, cameras, wildfires and the river gauge, from the automatic update. Hover or long-press a time to see the exact date and time.</li>
+        <li><strong>Pipeline looks stalled</strong> (amber) — the automatic update is more than 4 hours old. Check the official sources before travelling.</li>
+        <li><strong>Unconfirmed / No data</strong> (grey) — a source didn’t respond. CityPulse never treats a missing source as “all clear”.</li>
+      </ul>
+
+      <h2>Privacy</h2>
+      <p>No analytics, advertising or tracking. Your theme, checklist ticks and saved shortcuts are stored only in your own browser. Map tiles load from OpenStreetMap, camera images from Manitoba 511, and fonts from Google Fonts, so those services see standard web requests from your browser.</p>
 
       <h2>What this is not</h2>
       <div class="callout warning">
@@ -95,7 +108,8 @@
       <ul>
         <li><a href="https://www.hydro.mb.ca/outages/" target="_blank" rel="noopener">Manitoba Hydro outage map</a> — power outages</li>
         <li><a href="https://www.manitoba511.ca" target="_blank" rel="noopener">Manitoba 511</a> — province-wide road map (or dial 511)</li>
-        <li><a href="https://weather.gc.ca/city/pages/mb-33_metric_e.html" target="_blank" rel="noopener">Environment Canada — Brandon forecast</a></li>
+        <li><a href="https://weather.gc.ca/en/location/index.html?coords=50.229,-99.466" target="_blank" rel="noopener">Environment Canada — Neepawa forecast &amp; alerts</a></li>
+        <li><a href="https://www.neepawa.ca/connect/" target="_blank" rel="noopener">Neepawa Connect</a> — the Town’s emergency notification sign-up</li>
         <li><a href="https://www.neepawa.ca" target="_blank" rel="noopener">Town of Neepawa</a> — municipal notices</li>
       </ul>
 
@@ -110,7 +124,7 @@
     <div class="container footer-grid">
       <div>
         <p class="brand">
-          <span class="pulse-dot"></span>
+          <span class="pulse-dot" aria-hidden="true"></span>
           <span>City<strong>Pulse</strong></span>
         </p>
         <p class="muted small">Fully automated status dashboard for Neepawa, Manitoba. Data refreshes itself — no human in the loop.</p>
@@ -119,7 +133,7 @@
         <h4>Data sources</h4>
         <ul>
           <li><a href="https://www.manitoba511.ca" target="_blank" rel="noopener">Manitoba 511</a></li>
-          <li><a href="https://weather.gc.ca" target="_blank" rel="noopener">Environment Canada</a></li>
+          <li><a href="https://weather.gc.ca/en/location/index.html?coords=50.229,-99.466" target="_blank" rel="noopener">Environment Canada</a></li>
           <li><a href="https://open-meteo.com" target="_blank" rel="noopener">Open-Meteo</a></li>
           <li><a href="https://cwfis.cfs.nrcan.gc.ca" target="_blank" rel="noopener">NRCan Wildfire (CWFIS)</a></li>
           <li><a href="https://wateroffice.ec.gc.ca" target="_blank" rel="noopener">Water Survey of Canada</a></li>
