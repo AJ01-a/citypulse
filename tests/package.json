@@ -1,0 +1,12 @@
+{
+  "name": "citypulse-tests",
+  "private": true,
+  "type": "module",
+  "description": "Browser scenario tests for the CityPulse dashboard (kept separate so the deploy's npm ci is unaffected).",
+  "scripts": {
+    "test": "node run.mjs"
+  },
+  "devDependencies": {
+    "playwright-core": "1.48.2"
+  }
+}

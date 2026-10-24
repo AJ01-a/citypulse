@@ -1,0 +1,77 @@
+{
+ "fetchedAt": 1792833038706,
+ "incidents": [
+  {
+   "id": "mb511-20",
+   "type": "road",
+   "severity": "minor",
+   "area": "HWY-34",
+   "description": "Caution on HWY-34 Both Directions from Jct Highway 1 to HWY-3. Activities: Surface breaks, Various locations. Highway 34, from Highway 3 to Highway 1, surface breaks. (Caution)",
+   "lat": 49.9327096021086,
+   "lng": -98.9497237067475,
+   "source": "mb-511",
+   "verified": true,
+   "createdAt": 1792785227000
+  },
+  {
+   "id": "mb511-1476",
+   "type": "road",
+   "severity": "minor",
+   "area": "HWY-16",
+   "description": "Caution on HWY-16 Westbound At North of East Jct HWY-5. Activities: Drive with caution, One lane traffic, Surface breaks, Washout. Hwy 16, north of Hwy 5 (east jct): part of highway is washed out. (Caution)",
+   "lat": 50.2262200000001,
+   "lng": -99.4597210568892,
+   "source": "mb-511",
+   "verified": true,
+   "createdAt": 1792525759000
+  },
+  {
+   "id": "mb511-18",
+   "type": "road",
+   "severity": "minor",
+   "area": "HWY-19",
+   "description": "General Information on HWY-19 Both Directions from within Riding Mountain National Park to HWY-10. Activities: No heavy truck traffic allowed. Weight restrictions of 6006 lbs or 2730 kg gross vehicle weight will be enforced on Hwy #19 within the boundaries of Riding Mountain Nati",
+   "lat": 50.6823059046437,
+   "lng": -99.5572095101819,
+   "source": "mb-511",
+   "verified": true,
+   "createdAt": 1790356206000
+  },
+  {
+   "id": "mb511-4",
+   "type": "road",
+   "severity": "minor",
+   "area": "HWY-10",
+   "description": "General Information on HWY-10 Both Directions At within Riding Mountain National Park. Activities: No heavy truck traffic allowed. Closure to heavy truck traffic (three axles or more) on PTH 10 within the boundaries of Riding Mountain National Park remains in effect. Vehicles wit",
+   "lat": 50.6458602693251,
+   "lng": -99.97391,
+   "source": "mb-511",
+   "verified": true,
+   "createdAt": 1790356159000
+  },
+  {
+   "id": "mb511-1349",
+   "type": "road",
+   "severity": "minor",
+   "area": "HWY-110",
+   "description": "Under Construction on HWY-110 Both Directions At Richmond Ave E. Activities: Intersection improvements. Hwy 110 and Richmond Ave, traffic signals will begin operation Sept. 28. (Under Construction)",
+   "lat": 49.8276215790306,
+   "lng": -99.87172,
+   "source": "mb-511",
+   "verified": true,
+   "createdAt": 1790169647000
+  },
+  {
+   "id": "mb511-1712",
+   "type": "road",
+   "severity": "minor",
+   "area": "HWY-1",
+   "description": "Under Construction on HWY-1 Both Directions At South Boggy Creek (one km east of HWY-340). Width Restriction: 3.7m Speed Restriction: 80km/h Activities: Reduce speed as posted, Signed and marked, Two way traffic, Watch for equipment & persons working. Eastbound lane closed with t",
+   "lat": 49.90124,
+   "lng": -99.6882890734864,
+   "source": "mb-511",
+   "verified": true,
+   "createdAt": 1787154538000
+  }
+ ]
+}
